@@ -232,7 +232,6 @@ export default function App() {
             customers={customers}
             orders={orders}
             messages={messages}
-            tasks={tasks}
             selectedTicketId={selectedTicketId}
             replyText={replyText}
             channelFilter={channelFilter}
@@ -264,9 +263,6 @@ export default function App() {
         return (
           <CustomersPage
             customers={customers}
-            orders={orders}
-            tickets={tickets}
-            tasks={tasks}
             selectedCustomerId={selectedCustomerId}
             searchQuery={searchQuery}
             onSelectCustomer={setSelectedCustomerId}
