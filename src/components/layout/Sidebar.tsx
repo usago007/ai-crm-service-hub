@@ -36,7 +36,7 @@ export function Sidebar({ currentPage, tickets, tasks, onNavigate }: SidebarProp
     { key: 'settings' as NavKey, label: t.nav.settings, icon: Settings },
   ];
 
-  function NavButton({ item, count }: { item: typeof mainItems[0]; count?: number }) {
+  function NavButton({ item, count }: { item: { key: NavKey; label: string; icon: typeof LayoutDashboard }; count?: number }) {
     const Icon = item.icon;
     const active = currentPage === item.key;
     return (

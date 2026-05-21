@@ -1,6 +1,5 @@
 import { createContext, useContext } from 'react';
 import { en } from './en';
-import type { en as EnType } from './en';
 import { zh } from './zh';
 
 export type Language = 'en' | 'zh';

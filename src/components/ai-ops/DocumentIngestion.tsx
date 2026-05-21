@@ -112,7 +112,7 @@ export function DocumentIngestion() {
             </select>
           </div>
           <div>
-            <label className={labelCls}>{t.aiOps.knowledgeType === '知识类型' ? '语言' : 'Language'}</label>
+            <label className={labelCls}>{(t.aiOps as Record<string, string>).knowledgeType === '知识类型' ? '语言' : 'Language'}</label>
             <select className={`${inputCls} w-full`} value={language} onChange={e => setLanguage(e.target.value)}>
               {['EN', 'ZH', 'ES', 'RU', 'JA', 'FR', 'Multi'].map(o => <option key={o}>{o}</option>)}
             </select>

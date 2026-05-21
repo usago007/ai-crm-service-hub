@@ -1,4 +1,4 @@
-import type { FAQ, ReplyTemplate, BusinessRule, PolicyDoc, AICapability, PermissionBoundary, GuardrailItem, Agent, SettingsData } from '../types';
+import type { FAQ, ReplyTemplate, BusinessRule, PolicyDoc, AICapability, PermissionBoundary, Agent, SettingsData } from '../types';
 
 export const FAQLIST: FAQ[] = [
   { id: 'FAQ-001', question: 'How long does standard shipping take?', category: 'Shipping', answerSummary: 'Standard: 7-14 business days. Express: 3-7 days.', language: 'EN', status: 'Published', usageCount: 342, matchAccuracy: 92 },

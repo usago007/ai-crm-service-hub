@@ -17,7 +17,7 @@ export function RAGTestLab() {
   const isSensitive = SENSITIVE_SCENARIOS.some(s => scenario.includes(s));
   const confidence = isSensitive ? 72 : 89;
   const citationCoverage = isSensitive ? 76 : 91;
-  const riskLevel = isSensitive ? 'High' : 'Low';
+  const riskLevel: string = isSensitive ? 'High' : 'Low';
   const guardrailPass = !isSensitive;
 
   const promptTemplate = PROMPT_TEMPLATES.find(p => p.scenario === 'Logistics' || p.scenario === 'Refund') || PROMPT_TEMPLATES[0];

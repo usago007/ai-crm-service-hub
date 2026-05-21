@@ -488,4 +488,4 @@ export const en = {
     syncStarted: 'Sync started',
     rebuildStarted: 'Index rebuild queued',
   },
-} as const;
+};

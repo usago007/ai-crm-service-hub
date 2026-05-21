@@ -1,7 +1,7 @@
 import type { Ticket, Customer } from '../../types';
 import { useT } from '../../i18n';
 import { Badge } from '../common/Badge';
-import { slaSt, slaLbl, prioCls, statCls, chIcon, cName, fmtDate } from '../../utils/format';
+import { slaSt, prioCls, statCls, chIcon, fmtDate } from '../../utils/format';
 import { Search } from 'lucide-react';
 
 interface ConversationListProps {

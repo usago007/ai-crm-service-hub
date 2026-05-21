@@ -1,6 +1,6 @@
 import type { Ticket, Customer, Message } from '../../types';
 import { useT } from '../../i18n';
-import { slaSt, slaLbl, prioCls, statCls, chIcon, fmtTime, cName } from '../../utils/format';
+import { slaSt, slaLbl, prioCls, statCls, chIcon, fmtTime } from '../../utils/format';
 import { Badge } from '../common/Badge';
 import { Button } from '../common/Button';
 import { useEffect, useRef } from 'react';

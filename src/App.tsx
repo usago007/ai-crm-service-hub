@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
-import type { NavKey, Toast as ToastType, Language } from './types';
+import type { NavKey, Toast as ToastType } from './types';
+import type { Language } from './i18n';
 import { CUSTOMERS } from './data/customers';
 import { ORDERS } from './data/orders';
 import { TICKETS } from './data/tickets';
@@ -39,7 +40,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [channelFilter, setChannelFilter] = useState('all');
   const [toasts, setToasts] = useState<ToastType[]>([]);
-  const [aiEnabled, setAiEnabled] = useState(true);
+  const [aiEnabled] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState<React.ReactNode>(null);
 
@@ -167,7 +168,6 @@ export default function App() {
   }, []);
 
   const handleCreateTask = useCallback(() => {
-    const customerOpts = customers.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
     openModal(
       <div>
         <div className="text-base font-semibold mb-4">Create Follow-up Task</div>

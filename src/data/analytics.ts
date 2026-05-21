@@ -1,5 +1,4 @@
 import type { AnalyticsData, ActivityLogItem } from '../types';
-import { CUSTOMERS } from './customers';
 
 export const ANALYTICS_DATA: AnalyticsData = {
   metrics: [
