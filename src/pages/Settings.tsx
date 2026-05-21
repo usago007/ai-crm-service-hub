@@ -1,4 +1,4 @@
-import type { Language } from '../types';
+import type { Language } from '../i18n';
 import { AGENTS, SETTINGS_DATA } from '../data/knowledge';
 import { Badge } from '../components/common/Badge';
 import { Toggle } from '../components/common/Toggle';

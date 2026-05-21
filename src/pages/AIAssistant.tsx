@@ -1,6 +1,5 @@
 import type { AICapability } from '../types';
 import { Toggle } from '../components/common/Toggle';
-import { Card } from '../components/common/Card';
 import { PERMISSION_BOUNDARIES, GUARDRAILS } from '../data/knowledge';
 import { Badge } from '../components/common/Badge';
 import { useT } from '../i18n';

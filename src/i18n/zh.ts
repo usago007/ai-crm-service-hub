@@ -283,6 +283,7 @@ export const zh: typeof en = {
     aiPermission: 'AI 权限',
     usage: '使用次数',
     accuracy: '准确率',
+    status: '状态',
   },
   customerField: {
     name: '姓名',
@@ -362,6 +363,7 @@ export const zh: typeof en = {
     modelGpt4o: 'GPT-4o',
     modelClaude: 'Claude 3.5 Sonnet',
     responseEnglish: '英语',
+    autoDetect: '自动检测',
   },
   brand: {
     tagline: '客服服务平台',

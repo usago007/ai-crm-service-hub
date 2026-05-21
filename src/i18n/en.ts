@@ -281,6 +281,7 @@ export const en = {
     aiPermission: 'AI Permission',
     usage: 'Usage',
     accuracy: 'Accuracy',
+    status: 'Status',
   },
   customerField: {
     name: 'Name',
@@ -360,6 +361,7 @@ export const en = {
     modelGpt4o: 'GPT-4o',
     modelClaude: 'Claude 3.5 Sonnet',
     responseEnglish: 'English',
+    autoDetect: 'Auto-detect',
   },
   brand: {
     tagline: 'Customer Service Platform',

@@ -1,4 +1,4 @@
-import type { TicketStatus, Priority } from '../types';
+import type { Priority } from '../types';
 
 export function fmtDate(d: string | undefined | null): string {
   if (!d) return '';

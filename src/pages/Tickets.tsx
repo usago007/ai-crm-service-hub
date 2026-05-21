@@ -1,8 +1,7 @@
 import type { Ticket, Customer, FollowUpTask, Message } from '../types';
-import { slaSt, slaLbl, prioCls, statCls, chIcon, fmtDate, fmtTime, cName } from '../utils/format';
+import { slaSt, slaLbl, prioCls, statCls, chIcon, fmtDate, fmtTime } from '../utils/format';
 import { Badge } from '../components/common/Badge';
 import { Drawer } from '../components/common/Drawer';
-import { X } from 'lucide-react';
 import { useT } from '../i18n';
 
 interface TicketsPageProps {

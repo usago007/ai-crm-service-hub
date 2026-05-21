@@ -1,22 +1,18 @@
 import { useMemo } from 'react';
-import type { Customer, Order, Ticket, FollowUpTask } from '../types';
+import type { Customer } from '../types';
 import { fmtDate } from '../utils/format';
 import { Badge } from '../components/common/Badge';
 import { Drawer } from '../components/common/Drawer';
-import { getOrdersByC, getTicketsByC, getTasksByC } from '../utils/ticket';
 import { useT } from '../i18n';
 
 interface CustomersPageProps {
   customers: Customer[];
-  orders: Order[];
-  tickets: Ticket[];
-  tasks: FollowUpTask[];
   selectedCustomerId: string | null;
   searchQuery: string;
   onSelectCustomer: (id: string | null) => void;
 }
 
-export function CustomersPage({ customers, orders, tickets, tasks, selectedCustomerId, searchQuery, onSelectCustomer }: CustomersPageProps) {
+export function CustomersPage({ customers, selectedCustomerId, searchQuery, onSelectCustomer }: CustomersPageProps) {
   const { t } = useT();
   const filtered = useMemo(() => {
     return customers.filter(c => {

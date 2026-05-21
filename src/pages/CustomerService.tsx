@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Ticket, Customer, Order, Message, FollowUpTask, AISuggestion } from '../types';
+import type { Ticket, Customer, Order, Message } from '../types';
 import { ConversationList } from '../components/service/ConversationList';
 import { ConversationPanel } from '../components/service/ConversationPanel';
 import { CustomerContextPanel } from '../components/service/CustomerContextPanel';
@@ -11,7 +11,6 @@ interface CustomerServiceProps {
   customers: Customer[];
   orders: Order[];
   messages: Message[];
-  tasks: FollowUpTask[];
   selectedTicketId: string | null;
   replyText: string;
   channelFilter: string;
@@ -26,7 +25,7 @@ interface CustomerServiceProps {
 }
 
 export function CustomerService({
-  tickets, customers, orders, messages, tasks,
+  tickets, customers, orders, messages,
   selectedTicketId, replyText, channelFilter, searchQuery,
   onSelectTicket, onReplyTextChange, onInsertAI, onSendReply, onSaveDraft, onEscalate, onCloseTicket,
 }: CustomerServiceProps) {
