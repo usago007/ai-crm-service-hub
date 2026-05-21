@@ -1,73 +1,78 @@
-# React + TypeScript + Vite
+# AI CRM Service Hub
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> AI-powered cross-border e-commerce customer service platform — with RAG pipeline, document ingestion, safety guardrails and full i18n.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **AI Suggested Replies** — Draft responses per issue type with confidence scores, source citations, and manual-review flags
+- **Risk Detection & Guardrails** — Auto-flag sensitive scenarios (refunds, compensation, complaints) requiring human review before sending
+- **Full RAG Pipeline** — 13-step pipeline from document ingestion through chunking, embedding, retrieval, reranking, prompt assembly to generation
+- **RAG Test Lab** — Interactive 4-step test: input → retrieved chunks → prompt preview → draft + guardrail check
+- **Document Ingestion** — Upload & pipeline simulation (parse → chunk → embed → index → publish)
+- **Customer 360** — Unified profile with AI-generated summaries, order/service/task history
+- **Three-Panel Workbench** — Conversation list | Message panel | AI context panel
+- **Analytics Dashboard** — KPIs, ticket volume, channel distribution, AI adoption trends
+- **English / 中文 i18n** — Custom React Context i18n with one-click language switch
 
-## React Compiler
+## Pages
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Page | Description |
+|---|---|
+| Overview | KPI dashboard with ticket volume, channel & AI adoption trends |
+| Customer Service | Three-panel workbench with AI-assisted reply suggestions |
+| Tickets | Ticket management with SLA tracking and status filters |
+| Customers | Customer list with 360 detail drawer |
+| Orders | Order management with logistics tracking timeline |
+| Knowledge Base | FAQs, reply templates, business rules & policy documents |
+| AI Assistant | AI capability toggles, permission boundaries, guardrails & model settings |
+| AI Operations | RAG pipeline config, document ingestion, evaluation, feedback loop & audit logs |
+| Follow-up Tasks | AI-generated and manual task management |
+| Analytics | Charts and metrics dashboard |
+| Settings | Language, timezone, team, channels & notification preferences |
 
-## Expanding the ESLint configuration
+## Tech Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+| Category | Tech |
+|---|---|
+| Framework | React 19 + TypeScript |
+| Build | Vite 8 (Oxc) |
+| Styling | Tailwind CSS v4 |
+| Icons | Lucide React |
+| i18n | Custom React Context |
+| Deployment | GitHub Pages via Actions |
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Project Structure
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+src/
+├── components/
+│   ├── common/       Badge, Button, Card, DataTable, Drawer, Modal, Toast, Toggle
+│   ├── layout/       Sidebar, Topbar, PageShell
+│   ├── service/      ConversationList, ConversationPanel, CustomerContextPanel
+│   └── ai-ops/       RAGTestLab, RAGConfiguration, DocumentIngestion, CapabilityPipeline
+├── pages/            11 page components
+├── data/             Mock data (customers, orders, tickets, messages, knowledge, tasks, analytics, AI ops)
+├── i18n/             English & Chinese translations
+├── types/            TypeScript interfaces & type definitions
+├── utils/            AI suggestion engine, ticket helpers, formatters
+└── styles/           Global CSS + design tokens
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Getting Started
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+git clone https://github.com/usago007/ai-crm-service-hub.git
+cd ai-crm-service-hub
+npm install
+npm run dev
 ```
+
+Build for production:
+
+```bash
+npm run build
+```
+
+## License
+
+[MIT](./LICENSE)
