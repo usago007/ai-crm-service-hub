@@ -1,78 +1,67 @@
 # AI CRM Service Hub
 
-> AI-powered cross-border e-commerce customer service platform — with RAG pipeline, document ingestion, safety guardrails and full i18n.
+工程化前端 CRM / 客服 / RAG 运维工作台。当前版本使用 `mock API + 结构化 fixture` 驱动，不接真实后端，但所有核心页面都已通过前端 API 契约工作，不再直接从页面读取散落的静态数组。
 
-## Features
+## Current Shape
 
-- **AI Suggested Replies** — Draft responses per issue type with confidence scores, source citations, and manual-review flags
-- **Risk Detection & Guardrails** — Auto-flag sensitive scenarios (refunds, compensation, complaints) requiring human review before sending
-- **Full RAG Pipeline** — 13-step pipeline from document ingestion through chunking, embedding, retrieval, reranking, prompt assembly to generation
-- **RAG Test Lab** — Interactive 4-step test: input → retrieved chunks → prompt preview → draft + guardrail check
-- **Document Ingestion** — Upload & pipeline simulation (parse → chunk → embed → index → publish)
-- **Customer 360** — Unified profile with AI-generated summaries, order/service/task history
-- **Three-Panel Workbench** — Conversation list | Message panel | AI context panel
-- **Analytics Dashboard** — KPIs, ticket volume, channel distribution, AI adoption trends
-- **English / 中文 i18n** — Custom React Context i18n with one-click language switch
+- `RAG + AI Operations` 已重构为 mock 运维台，包含:
+  - `Knowledge Registry`
+  - `Ingestion Jobs`
+  - `Retrieval Debugger`
+  - `Prompt Assembly Inspector`
+  - `Evaluation & Feedback`
+- `Customer Service` 与 `Tickets` 共用结构化 ticket workflow:
+  - `triage`
+  - `retrieve`
+  - `draft`
+  - `review`
+  - `execute`
+  - `follow-up`
+  - `resolved`
+- `Customers / CRM` 已升级为服务决策输入层，包含:
+  - segment
+  - risk flags
+  - complaint history
+  - refund history
+  - promise fulfillment
+  - recent service timeline
 
-## Pages
+## Architecture
 
-| Page | Description |
-|---|---|
-| Overview | KPI dashboard with ticket volume, channel & AI adoption trends |
-| Customer Service | Three-panel workbench with AI-assisted reply suggestions |
-| Tickets | Ticket management with SLA tracking and status filters |
-| Customers | Customer list with 360 detail drawer |
-| Orders | Order management with logistics tracking timeline |
-| Knowledge Base | FAQs, reply templates, business rules & policy documents |
-| AI Assistant | AI capability toggles, permission boundaries, guardrails & model settings |
-| AI Operations | RAG pipeline config, document ingestion, evaluation, feedback loop & audit logs |
-| Follow-up Tasks | AI-generated and manual task management |
-| Analytics | Charts and metrics dashboard |
-| Settings | Language, timezone, team, channels & notification preferences |
-
-## Tech Stack
-
-| Category | Tech |
-|---|---|
-| Framework | React 19 + TypeScript |
-| Build | Vite 8 (Oxc) |
-| Styling | Tailwind CSS v4 |
-| Icons | Lucide React |
-| i18n | Custom React Context |
-| Deployment | GitHub Pages via Actions |
-
-## Project Structure
-
-```
+```text
 src/
-├── components/
-│   ├── common/       Badge, Button, Card, DataTable, Drawer, Modal, Toast, Toggle
-│   ├── layout/       Sidebar, Topbar, PageShell
-│   ├── service/      ConversationList, ConversationPanel, CustomerContextPanel
-│   └── ai-ops/       RAGTestLab, RAGConfiguration, DocumentIngestion, CapabilityPipeline
-├── pages/            11 page components
-├── data/             Mock data (customers, orders, tickets, messages, knowledge, tasks, analytics, AI ops)
-├── i18n/             English & Chinese translations
-├── types/            TypeScript interfaces & type definitions
-├── utils/            AI suggestion engine, ticket helpers, formatters
-└── styles/           Global CSS + design tokens
+├── api/
+│   ├── adapters/     mock API adapter
+│   └── contracts/    request / response contracts
+├── app/              reserved app-level structure
+├── entities/         shared entity exports
+├── mocks/
+│   └── fixtures/     structured case graph fixture snapshot
+├── modules/          reserved module-level structure
+├── pages/            page shells consuming app state
+├── shared/
+│   ├── hooks/        app state + API orchestration
+│   └── lib/          mapping helpers
+└── components/       reusable UI components
 ```
 
-## Getting Started
+## Mock Data Rules
+
+- mock 数据只能存在于 `src/mocks` 和 `src/api/adapters`
+- 页面不得直接 import `src/data/*.ts`
+- 所有交互必须经过 mock API contract
+- mock fixture 必须覆盖成功态、失败态、冲突态
+
+## Commands
 
 ```bash
-git clone https://github.com/usago007/ai-crm-service-hub.git
-cd ai-crm-service-hub
 npm install
+npm run build
+npm run lint
 npm run dev
 ```
 
-Build for production:
+## Notes
 
-```bash
-npm run build
-```
-
-## License
-
-[MIT](./LICENSE)
+- 仓库里保留了一些旧的 `src/data/*.ts` 和老组件，便于渐进迁移；运行主链已切换到新的 snapshot + mock API。
+- 当前仍是前端工程，不包含真实后端、向量库或模型调用；但接口契约和状态流已预留，便于后续接入真实服务。

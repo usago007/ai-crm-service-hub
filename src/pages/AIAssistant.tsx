@@ -1,139 +1,78 @@
-import type { AICapability } from '../types';
+import type { AICapability, PermissionBoundary } from '../types';
+import { DataTable } from '../components/common/DataTable';
 import { Toggle } from '../components/common/Toggle';
-import { PERMISSION_BOUNDARIES, GUARDRAILS } from '../data/knowledge';
 import { Badge } from '../components/common/Badge';
+import { PageHeader, PanelCard, StatCard } from '../components/common/PageChrome';
 import { useT } from '../i18n';
 
 interface AIAssistantProps {
   aiCapabilities: AICapability[];
+  permissionBoundaries: PermissionBoundary[];
+  guardrails: string[];
   onToggleCapability: (id: string) => void;
 }
 
-export function AIAssistant({ aiCapabilities, onToggleCapability }: AIAssistantProps) {
+export function AIAssistant({ aiCapabilities, permissionBoundaries, guardrails, onToggleCapability }: AIAssistantProps) {
   const { t } = useT();
-
-  const PERFORMANCE = [
-    { label: t.aiAssistantMetrics.todaySuggestions, value: '47', color: '' },
-    { label: t.aiAssistantMetrics.adoptionRate, value: '72%', color: 'var(--color-success)' },
-    { label: t.aiAssistantMetrics.avgConfidence, value: '84%', color: '' },
-    { label: t.aiAssistantMetrics.faqsMatched, value: '312', color: '' },
-    { label: t.aiAssistantMetrics.risksDetected, value: '28', color: '' },
-  ];
+  const enabledCount = aiCapabilities.filter(item => item.enabled).length;
+  const manualReviewCount = permissionBoundaries.filter(item => item.manualReview !== 'No').length;
+  const blockedSendCount = permissionBoundaries.filter(item => item.aiSend !== 'No').length;
 
   return (
-    <div>
-      <div className="text-xl font-bold mb-1">{t.page.aiAssistant}</div>
-      <div className="text-[13px] text-[var(--color-text-secondary)] mb-5">{t.page.subtitle_aiAssistant}</div>
-
-      <div className="grid grid-cols-2 gap-5">
-        <div className="bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] overflow-hidden">
-          <div className="px-4 py-3.5 border-b border-[var(--color-border)] text-sm font-semibold flex items-center justify-between">
-            {t.ai.capabilities}
+    <div className="space-y-4">
+      <PageHeader
+        eyebrow="AI control"
+        title={t.page.aiConsole}
+        description={t.page.subtitle_aiConsole}
+        aside={
+          <div className="grid grid-cols-3 gap-3 max-[1100px]:grid-cols-1">
+            <StatCard label="启用能力" value={String(enabledCount)} detail="当前允许 AI 参与的能力节点数量。" />
+            <StatCard label="强制复核场景" value={String(manualReviewCount)} detail="命中这些场景时，AI 只能辅助，不能独立闭环。" tone="warning" />
+            <StatCard label="禁止 AI 发送" value={String(blockedSendCount)} detail="涉及敏感动作或承诺时，发送权始终保留给人工。" tone="danger" />
           </div>
-          <div className="p-4">
-            {aiCapabilities.map(c => (
-              <Toggle
-                key={c.id}
-                label={c.name}
-                description={c.desc}
-                on={c.enabled}
-                onClick={() => onToggleCapability(c.id)}
-              />
+        }
+      />
+
+      <div className="grid grid-cols-[0.88fr_1.12fr] gap-5 max-[1200px]:grid-cols-1">
+        <PanelCard title="AI 能力开关" description="这里只决定 AI 是否能参与某个环节，不授予执行权。">
+          <div className="rounded-[20px] border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.52)] p-4">
+            {aiCapabilities.map(capability => (
+              <Toggle key={capability.id} label={capability.name} description={capability.desc} on={capability.enabled} onClick={() => onToggleCapability(capability.id)} />
             ))}
           </div>
-        </div>
+        </PanelCard>
 
-        <div className="bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] overflow-hidden">
-          <div className="px-4 py-3.5 border-b border-[var(--color-border)] text-sm font-semibold">{t.ai.permissionBoundary}</div>
-          <div className="p-4">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr>
-                  <th className="text-left px-2 py-1.5 text-[11px] font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)]">{t.ai.scenario}</th>
-                  <th className="text-left px-2 py-1.5 text-[11px] font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)]">{t.ai.aiCanSuggest}</th>
-                  <th className="text-left px-2 py-1.5 text-[11px] font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)]">{t.ai.aiCanSend}</th>
-                  <th className="text-left px-2 py-1.5 text-[11px] font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)]">{t.ai.manualReview}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {PERMISSION_BOUNDARIES.map((p, i) => (
-                  <tr key={i}>
-                    <td className="px-2 py-1.5 text-xs border-b border-[var(--color-border-light)]">{p.scenario}</td>
-                    <td className="px-2 py-1.5 text-xs border-b border-[var(--color-border-light)]">
-                      <Badge variant={p.aiSuggest === 'Yes' ? 'green' : 'red'}>{p.aiSuggest}</Badge>
-                    </td>
-                    <td className="px-2 py-1.5 text-xs border-b border-[var(--color-border-light)]">
-                      <Badge variant="red">{p.aiSend}</Badge>
-                    </td>
-                    <td className="px-2 py-1.5 text-xs border-b border-[var(--color-border-light)]">
-                      <Badge variant={p.manualReview === 'Yes' ? 'red' : 'green'}>{p.manualReview}</Badge>
-                    </td>
+        <PanelCard title="权限边界" description="统一查看 AI 建议权、发送权和人工复核要求，避免每个页面单独解释。">
+          <DataTable
+            columns={[
+              { key: 'scenario', label: '场景', width: '32%' },
+              { key: 'suggest', label: 'AI 建议' },
+              { key: 'send', label: 'AI 发送' },
+              { key: 'review', label: '人工复核' },
+            ]}
+            emptyMessage="当前没有权限边界规则。"
+            className="rounded-[20px]"
+          >
+                {permissionBoundaries.map(boundary => (
+                  <tr key={boundary.scenario}>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{boundary.scenario}</td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant="green">{boundary.aiSuggest}</Badge></td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant="red">{boundary.aiSend}</Badge></td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant={boundary.manualReview === 'No' ? 'green' : 'yellow'}>{boundary.manualReview}</Badge></td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          </DataTable>
+        </PanelCard>
 
-        <div className="bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] overflow-hidden">
-          <div className="px-4 py-3.5 border-b border-[var(--color-border)] text-sm font-semibold">{t.ai.guardrails}</div>
-          <div className="p-4">
-            {GUARDRAILS.map((g, i) => (
-              <div key={i} className="px-3 py-2 mb-1.5 bg-[var(--color-bg)] rounded-[var(--radius-sm)] text-xs border-l-3 border-l-[var(--color-primary)] flex items-center gap-2">
-                {g}
-              </div>
-            ))}
-            <div className="mt-3">
-              <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">{t.ai.customGuardrail}</label>
-              <textarea
-                className="w-full border border-[var(--color-border)] rounded-[var(--radius-sm)] px-3 py-2 text-xs font-[var(--font-family-sans)] outline-none resize-vertical bg-white focus:border-[var(--color-primary)]"
-                rows={2}
-                placeholder={t.ai.addGuardrail}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] overflow-hidden">
-          <div className="px-4 py-3.5 border-b border-[var(--color-border)] text-sm font-semibold">{t.ai.modelSettings}</div>
-          <div className="p-4">
-            <div className="mb-3">
-              <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">{t.settings.model}</label>
-              <select className="w-full h-9 border border-[var(--color-border)] rounded-[var(--radius-sm)] px-3 text-xs bg-white text-[var(--color-text)] cursor-pointer outline-none">
-                <option>{t.settingsOptions.modelGpt4oMini}</option>
-                <option>{t.settingsOptions.modelGpt4o}</option>
-                <option>{t.settingsOptions.modelClaude}</option>
-              </select>
-            </div>
-            <div className="mb-3">
-              <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">{t.settings.temperature}</label>
-              <input className="w-full h-9 border border-[var(--color-border)] rounded-[var(--radius-sm)] px-3 text-xs bg-white outline-none" type="number" defaultValue={0.3} min={0} max={1} step={0.1} />
-            </div>
-            <div className="mb-3">
-              <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">{t.settings.maxTokens}</label>
-              <input className="w-full h-9 border border-[var(--color-border)] rounded-[var(--radius-sm)] px-3 text-xs bg-white outline-none" type="number" defaultValue={512} />
-            </div>
-            <div className="mb-3">
-              <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">{t.settings.defaultLanguage}</label>
-              <select className="w-full h-9 border border-[var(--color-border)] rounded-[var(--radius-sm)] px-3 text-xs bg-white text-[var(--color-text)] cursor-pointer outline-none">
-                <option>{t.settingsOptions.responseEnglish}</option>
-                <option>{t.settingsOptions.autoDetect}</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] overflow-hidden">
-          <div className="px-4 py-3.5 border-b border-[var(--color-border)] text-sm font-semibold">{t.ai.performance}</div>
-          <div className="p-4">
-            {PERFORMANCE.map((p, i) => (
-              <div key={i} className="flex justify-between py-0.5 text-xs">
-                <span className="text-[var(--color-text-secondary)]">{p.label}</span>
-                <span className="font-medium text-right ml-3" style={p.color ? { color: p.color } : undefined}>{p.value}</span>
+        <PanelCard title="护栏规则" description="这些规则用来约束草稿、引用、赔付承诺和越权执行。" className="col-span-2 max-[1200px]:col-span-1">
+          <div className="grid grid-cols-2 gap-3 max-[1200px]:grid-cols-1">
+            {guardrails.map(item => (
+              <div key={item} className="rounded-[18px] border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.68)] px-4 py-3 text-xs leading-6 shadow-[inset_3px_0_0_var(--color-primary)]">
+                {item}
               </div>
             ))}
           </div>
-        </div>
+        </PanelCard>
       </div>
     </div>
   );

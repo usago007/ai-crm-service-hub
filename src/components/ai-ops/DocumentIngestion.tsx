@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useT } from '../../i18n';
-import { Badge } from '../common/Badge';
+import { Badge, type BadgeVariant } from '../common/Badge';
+import { Button } from '../common/Button';
+import { DataTable } from '../common/DataTable';
+import { PanelCard, inputCls } from '../common/PageChrome';
 import { INGESTION_RECORDS } from '../../data/aiOperations';
 
 interface IngestionRecord {
@@ -31,6 +34,8 @@ const statusVariant = (s: string) => {
   if (s === 'Failed') return 'red';
   return 'gray';
 };
+
+const badgeVariant = (status: string): BadgeVariant => statusVariant(status) as BadgeVariant;
 
 export function DocumentIngestion() {
   const { t } = useT();
@@ -81,99 +86,100 @@ export function DocumentIngestion() {
     setTimeout(() => setRecords(prev => prev.map(r => r.id === newRec.id ? { ...r, embeddingStatus: 'Indexed', indexStatus: 'Published' } : r)), 5000);
   };
 
-  const inputCls = 'h-9 border border-[var(--color-border)] rounded-[var(--radius-sm)] px-3 text-xs bg-white outline-none focus:border-[var(--color-primary)]';
   const labelCls = 'text-xs text-[var(--color-text-secondary)] mb-1 block';
 
   return (
     <div className="grid grid-cols-1 gap-4">
-      <div className="bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] p-4">
-        <div className="text-sm font-semibold mb-3">{t.aiOps.uploadDocument}</div>
+      <PanelCard title={t.aiOps.uploadDocument} description="Create a mock ingestion record and watch parse, chunk, embed, and publish statuses progress through the workflow.">
         <div className="grid grid-cols-4 gap-3 max-[1200px]:grid-cols-2">
           <div>
             <label className={labelCls}>{t.aiOps.documentName}</label>
-            <input className={`${inputCls} w-full`} value={docName} onChange={e => setDocName(e.target.value)} placeholder={`e.g. Policy_v1.pdf`} />
+            <input className={inputCls} value={docName} onChange={e => setDocName(e.target.value)} placeholder={`e.g. Policy_v1.pdf`} />
           </div>
           <div>
             <label className={labelCls}>{t.aiOps.sourceType}</label>
-            <select className={`${inputCls} w-full`} value={sourceType} onChange={e => setSourceType(e.target.value)}>
+            <select className={inputCls} value={sourceType} onChange={e => setSourceType(e.target.value)}>
               {['PDF', 'DOCX', 'XLSX', 'CSV', 'HTML', 'TXT'].map(o => <option key={o}>{o}</option>)}
             </select>
           </div>
           <div>
             <label className={labelCls}>{t.aiOps.knowledgeType}</label>
-            <select className={`${inputCls} w-full`} value={knowledgeType} onChange={e => setKnowledgeType(e.target.value)}>
+            <select className={inputCls} value={knowledgeType} onChange={e => setKnowledgeType(e.target.value)}>
               {['FAQ', 'Policy', 'Product Spec', 'Business Rule', 'Reply Template'].map(o => <option key={o}>{o}</option>)}
             </select>
           </div>
           <div>
             <label className={labelCls}>{t.aiOps.scenarioLabel}</label>
-            <select className={`${inputCls} w-full`} value={scenario} onChange={e => setScenario(e.target.value)}>
+            <select className={inputCls} value={scenario} onChange={e => setScenario(e.target.value)}>
               {['Shipping', 'Refund', 'Product Inquiry', 'Payment', 'Complaint', 'Promotion'].map(o => <option key={o}>{o}</option>)}
             </select>
           </div>
           <div>
             <label className={labelCls}>{(t.aiOps as Record<string, string>).knowledgeType === '知识类型' ? '语言' : 'Language'}</label>
-            <select className={`${inputCls} w-full`} value={language} onChange={e => setLanguage(e.target.value)}>
+            <select className={inputCls} value={language} onChange={e => setLanguage(e.target.value)}>
               {['EN', 'ZH', 'ES', 'RU', 'JA', 'FR', 'Multi'].map(o => <option key={o}>{o}</option>)}
             </select>
           </div>
           <div>
             <label className={labelCls}>{t.aiOps.ownerLabel}</label>
-            <input className={`${inputCls} w-full`} value={owner} onChange={e => setOwner(e.target.value)} placeholder="Ops / CS Lead / Product" />
+            <input className={inputCls} value={owner} onChange={e => setOwner(e.target.value)} placeholder="Ops / CS Lead / Product" />
           </div>
           <div>
             <label className={labelCls}>{t.aiOps.versionLabel}</label>
-            <input className={`${inputCls} w-full`} value={version} onChange={e => setVersion(e.target.value)} placeholder="v1.0" />
+            <input className={inputCls} value={version} onChange={e => setVersion(e.target.value)} placeholder="v1.0" />
           </div>
           <div>
             <label className={labelCls}>{t.aiOps.effectiveDate}</label>
-            <input type="date" className={`${inputCls} w-full`} value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} />
+            <input type="date" className={inputCls} value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} />
           </div>
         </div>
         <div className="mt-3">
-          <button className="btn btn-primary btn-sm" onClick={handleIngest}>{t.aiOps.startIngestion}</button>
+          <Button size="sm" onClick={handleIngest}>{t.aiOps.startIngestion}</Button>
         </div>
-      </div>
+      </PanelCard>
 
-      <div className="overflow-auto border border-[var(--color-border)] rounded-[var(--radius)] bg-[var(--bg-card)]">
-        <table className="w-full border-collapse min-w-[1200px]">
-          <thead>
-            <tr>
-              {[
-                t.aiOps.documentName, t.aiOps.sourceType, t.aiOps.knowledgeType, t.aiOps.scenarioLabel,
-                'Language', t.aiOps.ownerLabel,
-                t.aiOps.parseStatus, t.aiOps.chunkStatus, t.aiOps.embedStatus, t.aiOps.indexStatus,
-                t.aiOps.chunkCount, t.aiOps.vectorCount, t.aiOps.versionLabel, t.aiOps.lastSync, t.aiOps.actions,
-              ].map(h => (
-                <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
+      <DataTable
+        columns={[
+          { key: 'name', label: t.aiOps.documentName, width: '20%' },
+          { key: 'sourceType', label: t.aiOps.sourceType },
+          { key: 'knowledgeType', label: t.aiOps.knowledgeType },
+          { key: 'scenario', label: t.aiOps.scenarioLabel },
+          { key: 'language', label: 'Language' },
+          { key: 'owner', label: t.aiOps.ownerLabel },
+          { key: 'parseStatus', label: t.aiOps.parseStatus },
+          { key: 'chunkStatus', label: t.aiOps.chunkStatus },
+          { key: 'embedStatus', label: t.aiOps.embedStatus },
+          { key: 'indexStatus', label: t.aiOps.indexStatus },
+          { key: 'chunkCount', label: t.aiOps.chunkCount },
+          { key: 'vectorCount', label: t.aiOps.vectorCount },
+          { key: 'version', label: t.aiOps.versionLabel },
+          { key: 'lastSync', label: t.aiOps.lastSync },
+          { key: 'actions', label: t.aiOps.actions },
+        ]}
+        emptyMessage="No ingestion records available."
+      >
             {records.map((r, i) => (
               <tr key={r.id} className={i % 2 === 0 ? 'bg-[var(--color-bg)]' : ''}>
-                <td className="px-3 py-2 text-[13px] border-b border-[var(--color-border-light)] font-medium whitespace-nowrap">{r.name}</td>
-                <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{r.sourceType}</td>
-                <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]"><Badge variant="blue">{r.knowledgeType}</Badge></td>
-                <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{r.scenario}</td>
-                <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{r.language}</td>
-                <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{r.owner}</td>
-                <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]"><Badge variant={statusVariant(r.parseStatus) as any}>{r.parseStatus}</Badge></td>
-                <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]"><Badge variant={statusVariant(r.chunkStatus) as any}>{r.chunkStatus}</Badge></td>
-                <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]"><Badge variant={statusVariant(r.embeddingStatus) as any}>{r.embeddingStatus}</Badge></td>
-                <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]"><Badge variant={statusVariant(r.indexStatus) as any}>{r.indexStatus}</Badge></td>
-                <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{r.chunkCount || '—'}</td>
-                <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{r.vectorCount || '—'}</td>
-                <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{r.version}</td>
-                <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)] border-b border-[var(--color-border-light)] whitespace-nowrap">{r.lastSync}</td>
-                <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">
-                  <button className="text-[var(--color-primary)] hover:underline" onClick={() => showToast(t.aiOps.syncStarted)}>Sync</button>
+                <td className="px-4 py-3 text-[13px] border-b border-[var(--color-border-light)] font-medium whitespace-nowrap">{r.name}</td>
+                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{r.sourceType}</td>
+                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant="blue">{r.knowledgeType}</Badge></td>
+                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{r.scenario}</td>
+                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{r.language}</td>
+                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{r.owner}</td>
+                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant={badgeVariant(r.parseStatus)}>{r.parseStatus}</Badge></td>
+                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant={badgeVariant(r.chunkStatus)}>{r.chunkStatus}</Badge></td>
+                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant={badgeVariant(r.embeddingStatus)}>{r.embeddingStatus}</Badge></td>
+                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant={badgeVariant(r.indexStatus)}>{r.indexStatus}</Badge></td>
+                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] tabular-nums">{r.chunkCount || '—'}</td>
+                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] tabular-nums">{r.vectorCount || '—'}</td>
+                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{r.version}</td>
+                <td className="px-4 py-3 text-xs text-[var(--color-text-secondary)] border-b border-[var(--color-border-light)] whitespace-nowrap">{r.lastSync}</td>
+                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">
+                  <Button variant="ghost" size="sm" onClick={() => showToast(t.aiOps.syncStarted)}>Sync</Button>
                 </td>
               </tr>
             ))}
-          </tbody>
-        </table>
-      </div>
+      </DataTable>
     </div>
   );
 }

@@ -85,7 +85,6 @@ export const AGENTS: Agent[] = [
 
 export const SETTINGS_DATA: SettingsData = {
   general: { language: 'English', timezone: 'UTC-5 (Eastern Time)', notifications: 'Email + In-app' },
-  ai: { model: 'GPT-4o-mini', temperature: 0.3, maxTokens: 512, language: 'English' },
   team: AGENTS,
   channels: { liveChat: true, email: true, ticket: true, whatsapp: false, messenger: false },
   notifications: { newTicket: true, slaWarning: true, aiAlert: true, taskReminder: true, reviewRequired: true },

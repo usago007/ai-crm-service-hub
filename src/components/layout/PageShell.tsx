@@ -6,8 +6,10 @@ interface PageShellProps {
 
 export function PageShell({ children }: PageShellProps) {
   return (
-    <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-5 min-h-0">
-      {children}
+    <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 pb-6 min-h-0">
+      <div className="max-w-[1460px] mx-auto pt-1">
+        {children}
+      </div>
     </div>
   );
 }

@@ -1,10 +1,10 @@
 import type { Customer, Ticket, AISuggestion, Order } from '../../types';
 import { useT } from '../../i18n';
 import { Badge } from '../common/Badge';
-import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { fmtDate } from '../../utils/format';
 import { Bot, RefreshCw, AlertTriangle } from 'lucide-react';
+import { PanelCard } from '../common/PageChrome';
 
 interface CustomerContextPanelProps {
   ticket: Ticket;
@@ -33,24 +33,23 @@ export function CustomerContextPanel({ ticket, customer, aiSummary, aiSug, aiSug
   return (
     <div className="w-[340px] flex-shrink-0 flex flex-col gap-3 overflow-y-auto scroll-smooth">
       {hasRisk && (
-        <div className="border border-[var(--color-danger)] bg-[var(--color-danger-bg)] rounded-[var(--radius)] p-3 flex gap-2.5 items-start">
+        <div className="rounded-[22px] border border-[rgba(200,85,76,0.24)] bg-[rgba(255,241,239,0.88)] p-3.5 flex gap-2.5 items-start shadow-[0_16px_28px_-24px_rgba(200,85,76,0.58)]">
           <AlertTriangle size={18} className="text-[var(--color-danger)] flex-shrink-0" />
-          <div className="text-xs text-[var(--color-danger)]">
+          <div className="text-xs text-[var(--color-danger)] leading-5">
             <strong>{t.service.manualReviewRequired}</strong><br />
             {riskMsg}
           </div>
         </div>
       )}
 
-      <Card borderLeft="var(--color-primary)">
-        <div className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-[0.3px] mb-2">{t.service.aiSummary}</div>
-        <div className="text-xs leading-relaxed bg-[var(--color-primary-bg)] p-2.5 rounded-[var(--radius-sm)] border-l-3 border-l-[var(--color-primary)]">
+      <PanelCard title={t.service.aiSummary} className="p-4">
+        <div className="text-xs leading-6 bg-[rgba(179,92,32,0.10)] p-3 rounded-[18px] shadow-[inset_3px_0_0_var(--color-primary)]">
           {aiSummary || 'AI analysis in progress...'}
         </div>
-      </Card>
+      </PanelCard>
 
-      <div className="border border-[rgba(108,92,231,0.2)] rounded-[var(--radius)] overflow-hidden">
-        <div className="bg-[var(--color-primary-bg)] px-3 py-2 flex items-center justify-between">
+      <PanelCard title={t.service.aiSuggestedReply} className="overflow-hidden p-0">
+        <div className="bg-[rgba(179,92,32,0.10)] px-4 py-3 flex items-center justify-between">
           <span className="text-xs font-semibold text-[var(--color-primary)]">{t.service.aiSuggestedReply}</span>
           {aiSug && (
             <span className="text-[11px] font-medium flex items-center gap-1.5">
@@ -66,8 +65,8 @@ export function CustomerContextPanel({ ticket, customer, aiSummary, aiSug, aiSug
         </div>
         {aiSug ? (
           <>
-            <div className="px-3 py-2.5 text-xs leading-relaxed">{aiSug.content}</div>
-            <div className="px-3 py-2 bg-[#FAFAFA] border-t border-[var(--color-border-light)]">
+            <div className="px-4 py-3 text-xs leading-6">{aiSug.content}</div>
+            <div className="px-4 py-3 bg-[rgba(255,255,255,0.48)] border-t border-[var(--color-border-light)]">
               <div className="text-[11px] text-[var(--color-text-light)] mb-1">Sources:</div>
               {aiSug.sources.filter(s => s.name).map((s, i) => (
                 <div key={i} className="text-[11px] text-[var(--color-text-secondary)] py-0.5 flex items-center gap-1.5">
@@ -76,19 +75,18 @@ export function CustomerContextPanel({ ticket, customer, aiSummary, aiSug, aiSug
                 </div>
               ))}
             </div>
-            <div className="px-3 py-2 border-t border-[var(--color-border-light)] flex gap-1.5 flex-wrap">
+            <div className="px-4 py-3 border-t border-[var(--color-border-light)] flex gap-1.5 flex-wrap">
               <Button size="sm" onClick={onInsertSuggestion}><Bot size={12} /> {t.service.insertToReply}</Button>
               <Button size="sm" variant="secondary" onClick={onRegenerate}><RefreshCw size={12} /> {t.service.regenerate}</Button>
               {aiSug.needsReview && <span className="text-[11px] text-[var(--color-danger)] ml-auto font-medium">{t.service.reviewRequired}</span>}
             </div>
           </>
         ) : (
-          <div className="px-3 py-2.5 text-xs text-[var(--color-text-light)]">{t.service.noSuggestion}</div>
+          <div className="px-4 py-3 text-xs text-[var(--color-text-light)]">{t.service.noSuggestion}</div>
         )}
-      </div>
+      </PanelCard>
 
-      <Card>
-        <div className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-[0.3px] mb-2">{t.service.customerProfile}</div>
+      <PanelCard title={t.service.customerProfile} className="p-4">
         {customer ? (
           <>
             {[
@@ -115,11 +113,10 @@ export function CustomerContextPanel({ ticket, customer, aiSummary, aiSug, aiSug
         ) : (
           <div className="text-xs text-[var(--color-text-secondary)]">{t.common.noData}</div>
         )}
-      </Card>
+      </PanelCard>
 
       {order && (
-        <Card>
-          <div className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-[0.3px] mb-2">{t.service.orderContext}</div>
+        <PanelCard title={t.service.orderContext} className="p-4">
           {[
             [t.orderField.orderId, order.id],
             [t.orderField.date, new Date(order.date).toLocaleDateString()],
@@ -137,13 +134,12 @@ export function CustomerContextPanel({ ticket, customer, aiSummary, aiSug, aiSug
             </div>
           ))}
           {order.riskAlert && (
-            <div className="mt-2 p-2 bg-[var(--color-danger-bg)] rounded-[var(--radius-sm)] text-xs text-[var(--color-danger)]">{order.riskAlert}</div>
+            <div className="mt-2 p-2.5 bg-[rgba(255,241,239,0.86)] rounded-[16px] text-xs text-[var(--color-danger)]">{order.riskAlert}</div>
           )}
-        </Card>
+        </PanelCard>
       )}
 
-      <Card>
-        <div className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-[0.3px] mb-2">{t.service.knowledgeMatches}</div>
+      <PanelCard title={t.service.knowledgeMatches} className="p-4">
         {(aiSugs.length > 0 ? aiSugs[0].sources.filter(s => s.name) : [
           { name: 'Shipping Delay Policy', match: '92%' },
           { name: 'Logistics Tracking FAQ', match: '86%' },
@@ -164,10 +160,9 @@ export function CustomerContextPanel({ ticket, customer, aiSummary, aiSug, aiSug
             </div>
           );
         })}
-      </Card>
+      </PanelCard>
 
-      <Card borderLeft={hasRisk ? 'var(--color-danger)' : 'var(--color-success)'}>
-        <div className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-[0.3px] mb-2">{t.service.riskReview}</div>
+      <PanelCard title={t.service.riskReview} className="p-4">
         {[
           [t.service.riskLevel, hasRisk ? 'Medium-High' : 'Low', hasRisk],
           [t.service.sensitiveTopic, ['Refund Request', 'Compensation', 'Complaint', 'Return Request'].includes(ticket.issueType) ? 'Yes' : 'No', false],
@@ -180,7 +175,7 @@ export function CustomerContextPanel({ ticket, customer, aiSummary, aiSug, aiSug
           </div>
         ))}
         {hasRisk && <div className="mt-2 text-[11px] text-[var(--color-danger)] font-medium">{t.riskMessage.aiCannotApprove}</div>}
-      </Card>
+      </PanelCard>
     </div>
   );
 }

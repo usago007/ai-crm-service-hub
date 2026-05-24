@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useT } from '../../i18n';
 import { Badge } from '../common/Badge';
+import { Button } from '../common/Button';
+import { PanelCard, inputCls } from '../common/PageChrome';
 import { RAG_TEST_MOCK_CHUNKS, PROMPT_TEMPLATES } from '../../data/aiOperations';
 
 const SENSITIVE_SCENARIOS = ['Refund', 'Compensation', 'Complaint', 'Chargeback'];
@@ -27,10 +29,11 @@ export function RAGTestLab() {
     : `Hi ${customer}, I understand your concern about the tracking for order ${relatedOrder}. I've checked and it appears the package is still in transit with the carrier. The tracking should update within 24-48 hours. I'll set a follow-up to check back with you. Is there anything else I can help with?`;
 
   const stepHeaderCls = 'text-sm font-semibold mb-2 flex items-center gap-2';
+  const selectCls = `${inputCls} min-h-10`;
 
   return (
     <div className="grid grid-cols-1 gap-4">
-      <div className="bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] p-4">
+      <PanelCard title={t.aiOps.step1Input} description="Compose a scenario with customer, language, and order context before you run retrieval.">
         <div className={stepHeaderCls}>
           <span className="w-6 h-6 rounded-full bg-[var(--color-primary)] text-white flex items-center justify-center text-xs font-bold">1</span>
           {t.aiOps.step1Input}
@@ -38,40 +41,40 @@ export function RAGTestLab() {
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
             <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">{t.aiOps.customerQuestion}</label>
-            <textarea className="w-full h-20 border border-[var(--color-border)] rounded-[var(--radius-sm)] px-3 py-2 text-xs bg-white outline-none resize-none focus:border-[var(--color-primary)]" value={question} onChange={e => setQuestion(e.target.value)} />
+            <textarea className="w-full min-h-[112px] border border-[var(--color-border-strong)] rounded-[20px] px-3.5 py-3 text-[13px] bg-[rgba(255,255,255,0.84)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] outline-none resize-none focus:border-[rgba(179,92,32,0.34)] focus:bg-white focus:shadow-[0_0_0_4px_rgba(179,92,32,0.10)] transition-all duration-200" value={question} onChange={e => setQuestion(e.target.value)} />
           </div>
           <div>
             <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">Customer</label>
-            <select className="h-8 border border-[var(--color-border)] rounded-[var(--radius-sm)] px-2 text-xs bg-white outline-none w-full" value={customer} onChange={e => setCustomer(e.target.value)}>
+            <select className={selectCls} value={customer} onChange={e => setCustomer(e.target.value)}>
               {['John Smith', 'Emily Carter', 'Ava Chen', 'Daniel Brown', 'Mike Johnson'].map(o => <option key={o}>{o}</option>)}
             </select>
           </div>
           <div>
             <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">{t.aiOps.scenarioLabel}</label>
-            <select className="h-8 border border-[var(--color-border)] rounded-[var(--radius-sm)] px-2 text-xs bg-white outline-none w-full" value={scenario} onChange={e => setScenario(e.target.value)}>
+            <select className={selectCls} value={scenario} onChange={e => setScenario(e.target.value)}>
               {['Shipping Delay', 'Refund Request', 'Product Inquiry', 'Payment Issue', 'Complaint', 'Compensation', 'Chargeback'].map(o => <option key={o}>{o}</option>)}
             </select>
           </div>
           <div>
             <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">Language</label>
-            <select className="h-8 border border-[var(--color-border)] rounded-[var(--radius-sm)] px-2 text-xs bg-white outline-none w-full" value={lang} onChange={e => setLang(e.target.value)}>
+            <select className={selectCls} value={lang} onChange={e => setLang(e.target.value)}>
               {['EN', 'ZH', 'ES', 'RU', 'JA'].map(o => <option key={o}>{o}</option>)}
             </select>
           </div>
           <div>
             <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">{t.aiOps.relatedOrder}</label>
-            <select className="h-8 border border-[var(--color-border)] rounded-[var(--radius-sm)] px-2 text-xs bg-white outline-none w-full" value={relatedOrder} onChange={e => setRelatedOrder(e.target.value)}>
+            <select className={selectCls} value={relatedOrder} onChange={e => setRelatedOrder(e.target.value)}>
               {['ORD-001', 'ORD-002', 'ORD-005', 'ORD-008', 'ORD-012'].map(o => <option key={o}>{o}</option>)}
             </select>
           </div>
         </div>
         <div className="mt-3">
-          <button className="btn btn-primary btn-sm" onClick={() => setStep(2)}>{t.aiOps.runRetrieval}</button>
+          <Button size="sm" onClick={() => setStep(2)}>{t.aiOps.runRetrieval}</Button>
         </div>
-      </div>
+      </PanelCard>
 
       {step >= 2 && (
-        <div className="bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] p-4">
+        <PanelCard title={t.aiOps.step2Chunks} description="Review chunk ranking, metadata matches, and which context was pulled into the run.">
           <div className={stepHeaderCls}>
             <span className="w-6 h-6 rounded-full bg-[var(--color-primary)] text-white flex items-center justify-center text-xs font-bold">2</span>
             {t.aiOps.step2Chunks}
@@ -97,13 +100,13 @@ export function RAGTestLab() {
             </div>
           ))}
           <div className="mt-3">
-            <button className="btn btn-secondary btn-sm" onClick={() => setStep(3)}>{t.aiOps.step3Prompt} →</button>
+            <Button variant="secondary" size="sm" onClick={() => setStep(3)}>{t.aiOps.step3Prompt} →</Button>
           </div>
-        </div>
+        </PanelCard>
       )}
 
       {step >= 3 && (
-        <div className="bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] p-4">
+        <PanelCard title={t.aiOps.step3Prompt} description="Inspect the exact prompt envelope before the draft is generated.">
           <div className={stepHeaderCls}>
             <span className="w-6 h-6 rounded-full bg-[var(--color-primary)] text-white flex items-center justify-center text-xs font-bold">3</span>
             {t.aiOps.step3Prompt}
@@ -145,13 +148,13 @@ export function RAGTestLab() {
             </div>
           </div>
           <div className="mt-3">
-            <button className="btn btn-secondary btn-sm" onClick={() => setStep(4)}>{t.aiOps.step4Draft} →</button>
+            <Button variant="secondary" size="sm" onClick={() => setStep(4)}>{t.aiOps.step4Draft} →</Button>
           </div>
-        </div>
+        </PanelCard>
       )}
 
       {step >= 4 && (
-        <div className="bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] p-4">
+        <PanelCard title={t.aiOps.step4Draft} description="Score the draft by confidence, citation coverage, manual review need, and guardrail result.">
           <div className={stepHeaderCls}>
             <span className="w-6 h-6 rounded-full bg-[var(--color-primary)] text-white flex items-center justify-center text-xs font-bold">4</span>
             {t.aiOps.step4Draft}
@@ -179,7 +182,7 @@ export function RAGTestLab() {
               <Badge variant={guardrailPass ? 'green' : 'red'}><span className="text-sm">{guardrailPass ? t.aiOps.guardrailPass : t.aiOps.guardrailFail}</span></Badge>
             </div>
           </div>
-        </div>
+        </PanelCard>
       )}
     </div>
   );

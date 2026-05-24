@@ -1,192 +1,149 @@
-import type { Ticket, Customer, FollowUpTask, Message } from '../types';
-import { slaSt, slaLbl, prioCls, statCls, chIcon, fmtDate, fmtTime } from '../utils/format';
-import { Badge } from '../components/common/Badge';
-import { Drawer } from '../components/common/Drawer';
+import type { ListQuery, PagedResult, ReviewDecision, ServiceTicket, TicketFilters } from '../types';
 import { useT } from '../i18n';
+import { Badge } from '../components/common/Badge';
+import { Pagination } from '../components/common/Pagination';
+import { Button } from '../components/common/Button';
+import { DetailPanel, EmptyState, FilterBar, PageHeader, PanelCard, StatCard, inputCls } from '../components/common/PageChrome';
+import { displayBoolean, displayChannel, displayIssueType, displayReviewStatus, displayRiskLevel, displayWorkflow, displayTicketStatus } from '../utils/display';
 
 interface TicketsPageProps {
-  tickets: Ticket[];
-  customers: Customer[];
-  tasks: FollowUpTask[];
-  messages: Message[];
-  ticketFilter: string;
+  result: PagedResult<ServiceTicket>;
+  reviews: ReviewDecision[];
+  query: ListQuery<TicketFilters>;
+  onQueryChange: (updater: (prev: ListQuery<TicketFilters>) => ListQuery<TicketFilters>) => void;
   selectedTicketId: string | null;
   onSelectTicket: (id: string | null) => void;
-  onTicketFilterChange: (filter: string) => void;
   onViewTicket: (id: string) => void;
 }
 
-export function TicketsPage({ tickets, customers, tasks, messages, ticketFilter, selectedTicketId, onSelectTicket, onTicketFilterChange, onViewTicket }: TicketsPageProps) {
+export function TicketsPage({ result, reviews, query, onQueryChange, selectedTicketId, onSelectTicket, onViewTicket }: TicketsPageProps) {
   const { t } = useT();
-  const filtered = tickets.filter(tk => ticketFilter === 'all' || tk.status === ticketFilter);
-  const selT = selectedTicketId ? tickets.find(tk => tk.id === selectedTicketId) ?? null : null;
-  const selC = selT ? customers.find(c => c.id === selT.customerId) ?? null : null;
-  const msgs = selT ? messages.filter(m => m.ticketId === selT.id) : [];
-
-  const filters = ['all', 'New', 'In Progress', 'Pending Review', 'Waiting Customer', 'Closed', 'Escalated'];
+  const activeTicket = selectedTicketId ? result.items.find(ticket => ticket.id === selectedTicketId) ?? result.items[0] ?? null : result.items[0] ?? null;
+  const activeReview = activeTicket ? reviews.find(item => item.id === activeTicket.reviewDecisionId) ?? null : null;
+  const reviewQueue = result.items.filter(ticket => ticket.manualReview).length;
+  const highRiskCount = result.items.filter(ticket => ticket.riskLevel === 'High').length;
 
   return (
-    <div>
-      <div className="text-xl font-bold mb-1">{t.page.tickets}</div>
-      <div className="text-[13px] text-[var(--color-text-secondary)] mb-5">{t.page.subtitle_tickets}</div>
+    <div className="space-y-4">
+      <PageHeader
+        eyebrow="Ticket governance"
+        title={t.page.tickets}
+        description={t.page.subtitle_tickets}
+        aside={
+          <div className="grid grid-cols-3 gap-3 max-[900px]:grid-cols-1">
+            <StatCard label="工单总量" value={String(result.total)} detail="当前筛选条件下的客服工单。" />
+            <StatCard label="人工复核" value={String(reviewQueue)} detail="需要人工确认后才可继续流转。" tone="warning" />
+            <StatCard label="高风险" value={String(highRiskCount)} detail="命中高风险策略或敏感动作。" tone="danger" />
+          </div>
+        }
+      />
 
-      <div className="flex gap-0 border-b border-[var(--color-border)] mb-4">
-        {filters.map(f => {
-          const cnt = f === 'all' ? tickets.length : tickets.filter(tk => tk.status === f).length;
-          return (
-            <div
-              key={f}
-              className={`px-4 py-2 text-[13px] cursor-pointer border-b-2 transition-all duration-[var(--transition)] whitespace-nowrap ${
-                ticketFilter === f
-                  ? 'text-[var(--color-primary)] border-b-[var(--color-primary)] font-medium'
-                  : 'text-[var(--color-text-secondary)] border-b-transparent hover:text-[var(--color-text)]'
-              }`}
-              onClick={() => onTicketFilterChange(f)}
-            >
-              {f === 'all' ? t.common.all : t.status[f as keyof typeof t.status]} <span className="text-[11px] text-[var(--color-text-light)] ml-1">({cnt})</span>
-            </div>
-          );
-        })}
-      </div>
+      <FilterBar>
+        <select className={inputCls} value={query.filters.status ?? ''} onChange={e => onQueryChange(prev => ({ ...prev, page: 1, filters: { ...prev.filters, status: e.target.value || undefined } }))}>
+          <option value="">全部状态</option>
+          {['New', 'In Progress', 'Pending Review', 'Waiting Customer', 'Closed', 'Escalated'].map(item => <option key={item} value={item}>{displayTicketStatus(item as ServiceTicket['status'])}</option>)}
+        </select>
+        <select className={inputCls} value={query.filters.workflowStage ?? ''} onChange={e => onQueryChange(prev => ({ ...prev, page: 1, filters: { ...prev.filters, workflowStage: e.target.value || undefined } }))}>
+          <option value="">全部流程</option>
+          {['triage', 'retrieve', 'draft', 'review', 'execute', 'follow-up', 'resolved'].map(item => <option key={item} value={item}>{displayWorkflow(item as ServiceTicket['workflowStage'])}</option>)}
+        </select>
+        <select className={inputCls} value={query.filters.channel ?? ''} onChange={e => onQueryChange(prev => ({ ...prev, page: 1, filters: { ...prev.filters, channel: e.target.value || undefined } }))}>
+          <option value="">全部渠道</option>
+          {['Email', 'Live Chat', 'Ticket'].map(item => <option key={item} value={item}>{displayChannel(item as ServiceTicket['channel'])}</option>)}
+        </select>
+        <select className={inputCls} value={query.filters.riskLevel ?? ''} onChange={e => onQueryChange(prev => ({ ...prev, page: 1, filters: { ...prev.filters, riskLevel: e.target.value || undefined } }))}>
+          <option value="">全部风险</option>
+          {['Low', 'Medium', 'High'].map(item => <option key={item} value={item}>{displayRiskLevel(item)}</option>)}
+        </select>
+        <Button variant="secondary" size="sm" onClick={() => onQueryChange(prev => ({ ...prev, page: 1, filters: {} }))}>重置筛选</Button>
+      </FilterBar>
 
-      <div className="flex gap-4 relative">
-        <div className="flex-1 overflow-auto border border-[var(--color-border)] rounded-[var(--radius)] bg-[var(--bg-card)]">
-          <table className="w-full border-collapse min-w-[1000px]">
-            <thead>
-              <tr>
-                {[
-                  t.tableHeader.ticketId,
-                  t.tableHeader.customer,
-                  t.tableHeader.channel,
-                  t.tableHeader.issue,
-                  t.tableHeader.priority,
-                  t.tableHeader.status,
-                  t.tableHeader.sla,
-                  t.tableHeader.ai,
-                  t.tableHeader.updated,
-                  '',
-                ].map((h, i) => (
-                  <th key={i} className="text-left px-3 py-2.5 text-xs font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(tk => {
-                const c = customers.find(cu => cu.id === tk.customerId);
-                const s = slaSt(tk.sla);
-                const sel = tk.id === selectedTicketId;
-                return (
-                  <tr
-                    key={tk.id}
-                    className={`cursor-pointer ${sel ? 'bg-[var(--color-primary-bg)]' : ''} hover:bg-[var(--color-bg)]`}
-                    onClick={() => onSelectTicket(tk.id)}
-                  >
-                    <td className="px-3 py-2.5 text-[13px] border-b border-[var(--color-border-light)] align-middle"><strong>{tk.id}</strong></td>
-                    <td className="px-3 py-2.5 text-[13px] border-b border-[var(--color-border-light)] align-middle">{c ? c.name : t.sender.unknown}</td>
-                    <td className="px-3 py-2.5 text-[13px] border-b border-[var(--color-border-light)] align-middle">
-                      <Badge variant={tk.channel === 'Live Chat' ? 'green' : tk.channel === 'Email' ? 'blue' : 'purple'}>{chIcon(tk.channel)} {tk.channel}</Badge>
-                    </td>
-                    <td className="px-3 py-2.5 text-[13px] border-b border-[var(--color-border-light)] align-middle">{tk.issueType}</td>
-                    <td className="px-3 py-2.5 text-[13px] border-b border-[var(--color-border-light)] align-middle">
-                      <Badge variant={prioCls(tk.priority).replace('badge-', '') as any}>{tk.priority}</Badge>
-                    </td>
-                    <td className="px-3 py-2.5 text-[13px] border-b border-[var(--color-border-light)] align-middle">
-                      <Badge variant={statCls(tk.status).replace('badge-', '') as any}>{tk.status}</Badge>
-                    </td>
-                    <td className="px-3 py-2.5 text-[13px] border-b border-[var(--color-border-light)] align-middle">
-                      <span className={`text-[11px] font-medium ${s === 'critical' ? 'text-[var(--color-danger)]' : s === 'warning' ? 'text-[var(--color-warning)]' : 'text-[var(--color-success)]'}`}>
-                        {slaLbl(tk.sla)}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-[13px] border-b border-[var(--color-border-light)] align-middle">
-                      {tk.aiSuggested && <Badge variant="ai">{t.badgeLabel.ai}</Badge>}
-                      {tk.needsReview && <Badge variant="red" className="ml-0.5">!</Badge>}
-                    </td>
-                    <td className="px-3 py-2.5 text-xs text-[var(--color-text-secondary)] border-b border-[var(--color-border-light)] align-middle">{fmtDate(tk.lastUpdated)}</td>
-                    <td className="px-3 py-2.5 text-[13px] border-b border-[var(--color-border-light)] align-middle">
-                      <button className="btn btn-sm btn-ghost" onClick={(e) => { e.stopPropagation(); onViewTicket(tk.id); }}>{t.common.view}</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {filtered.length === 0 && <div className="text-center py-10 text-[var(--color-text-light)]">{t.common.noTickets}</div>}
-        </div>
-
-        <Drawer open={!!selT} onClose={() => onSelectTicket(null)}>
-          {selT && selC && (
+      <div className="grid grid-cols-[minmax(0,1fr)_400px] gap-4 max-[1260px]:grid-cols-1">
+        <PanelCard title="工单队列" description="统一查看意图、流程阶段、风险等级和人工复核状态。">
+          {result.items.length > 0 ? (
             <>
-              <div className="px-4 py-3.5 border-b border-[var(--color-border-light)]">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <strong style={{ fontSize: 15 }}>{selT.id}</strong>
-                  <Badge variant={statCls(selT.status).replace('badge-', '') as any} className="text-xs">{selT.status}</Badge>
-                </div>
-                <div className="mt-2 flex gap-1.5 flex-wrap">
-                  <Badge variant={prioCls(selT.priority).replace('badge-', '') as any}>{selT.priority}</Badge>
-                  <Badge variant={selT.channel === 'Live Chat' ? 'green' : selT.channel === 'Email' ? 'blue' : 'purple'}>{chIcon(selT.channel)} {selT.channel}</Badge>
-                  <Badge variant="gray">{selT.issueType}</Badge>
-                  {selT.aiSuggested && <Badge variant="ai">{t.badgeLabel.ai}</Badge>}
-                </div>
+              <div className="overflow-auto">
+                <table className="w-full border-collapse min-w-[1200px]">
+                  <thead>
+                    <tr>
+                      {['工单', '意图', '渠道', '流程', '风险', '负责人', '所需动作', '区域', '复核', ''].map(header => (
+                        <th key={header} className="text-left px-4 py-3 text-[11px] uppercase tracking-[0.18em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.items.map(ticket => {
+                      const review = reviews.find(item => item.id === ticket.reviewDecisionId);
+                      return (
+                        <tr key={ticket.id} className={`cursor-pointer border-b border-[var(--color-border-light)] ${activeTicket?.id === ticket.id ? 'bg-[var(--color-primary-bg)]' : 'hover:bg-[rgba(255,255,255,0.42)]'}`} onClick={() => onSelectTicket(ticket.id)}>
+                          <td className="px-4 py-3 text-[13px]"><div className="font-semibold">{ticket.id}</div><div className="text-[11px] text-[var(--color-text-light)] mt-1">{displayIssueType(ticket.issueType)}</div></td>
+                          <td className="px-4 py-3 text-xs">{ticket.intent}</td>
+                          <td className="px-4 py-3 text-xs">{displayChannel(ticket.channel)}</td>
+                          <td className="px-4 py-3 text-xs"><Badge variant="blue">{displayWorkflow(ticket.workflowStage)}</Badge></td>
+                          <td className="px-4 py-3 text-xs"><Badge variant={ticket.riskLevel === 'High' ? 'red' : ticket.riskLevel === 'Medium' ? 'yellow' : 'green'}>{displayRiskLevel(ticket.riskLevel)}</Badge></td>
+                          <td className="px-4 py-3 text-xs">{ticket.assignee}</td>
+                          <td className="px-4 py-3 text-xs">{ticket.requiredAction}</td>
+                          <td className="px-4 py-3 text-xs">{ticket.region}</td>
+                          <td className="px-4 py-3 text-xs"><Badge variant={review?.status === 'approved' ? 'green' : review?.status === 'pending' ? 'yellow' : 'red'}>{review ? displayReviewStatus(review.status) : '无'}</Badge></td>
+                          <td className="px-4 py-3 text-xs">
+                            <Button variant="ghost" size="sm" onClick={event => { event.stopPropagation(); onViewTicket(ticket.id); }}>
+                              {t.common.view}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-
-              <div className="px-4 py-3.5 border-b border-[var(--color-border-light)]">
-                <div className="text-[11px] uppercase tracking-[0.5px] text-[var(--color-text-secondary)] font-semibold mb-2">{t.ticket.customerInfo}</div>
-                {[
-                  [t.customerField.name, selC.name],
-                  [t.customerField.email, selC.email],
-                  [t.customerField.country, selC.country],
-                  [t.customerField.type, selC.type],
-                ].map(([label, value], i) => (
-                  <div key={i} className="flex justify-between py-0.5 text-xs">
-                    <span className="text-[var(--color-text-secondary)]">{label}</span>
-                    <span className="font-medium text-right ml-3">{value}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="px-4 py-3.5 border-b border-[var(--color-border-light)]">
-                <div className="text-[11px] uppercase tracking-[0.5px] text-[var(--color-text-secondary)] font-semibold mb-2">{t.ticket.aiSummary}</div>
-                <div className="text-xs leading-relaxed bg-[var(--color-primary-bg)] p-2 rounded-[var(--radius-sm)]">{selT.aiSummary}</div>
-              </div>
-
-              <div className="px-4 py-3.5 border-b border-[var(--color-border-light)]">
-                <div className="text-[11px] uppercase tracking-[0.5px] text-[var(--color-text-secondary)] font-semibold mb-2">SLA</div>
-                <div className="flex justify-between py-0.5 text-xs">
-                  <span className="text-[var(--color-text-secondary)]">{t.ticket.deadline}</span>
-                  <span className="font-medium text-right ml-3">{new Date(selT.sla).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between py-0.5 text-xs">
-                  <span className="text-[var(--color-text-secondary)]">{t.ticket.timeLeft}</span>
-                  <span className={`font-medium text-right ml-3 ${slaSt(selT.sla) === 'critical' ? 'text-[var(--color-danger)]' : slaSt(selT.sla) === 'warning' ? 'text-[var(--color-warning)]' : 'text-[var(--color-success)]'}`}>
-                    {slaLbl(selT.sla)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="px-4 py-3.5 border-b border-[var(--color-border-light)]">
-                <div className="text-[11px] uppercase tracking-[0.5px] text-[var(--color-text-secondary)] font-semibold mb-2">{t.ticket.activity} ({msgs.length} {t.ticket.messages})</div>
-                {msgs.slice(-5).map((m, i) => (
-                  <div key={i} className="py-1.5 text-xs border-b border-[var(--color-border-light)] flex gap-2">
-                    <span className="text-[10px] text-[var(--color-text-light)] whitespace-nowrap flex-shrink-0">{fmtTime(m.timestamp)}</span>
-                    <span className="text-[var(--color-text)]">{m.sender === 'system' ? t.sender.system : m.sender === 'customer' ? t.sender.customer : t.sender.agent}: {m.content.substring(0, 70)}{m.content.length > 70 ? '...' : ''}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="px-4 py-3.5">
-                <div className="text-[11px] uppercase tracking-[0.5px] text-[var(--color-text-secondary)] font-semibold mb-2">{t.ticket.followUpTasks}</div>
-                {tasks.filter(tsk => tsk.ticketId === selT.id).length > 0 ? tasks.filter(tsk => tsk.ticketId === selT.id).map(tsk => (
-                  <div key={tsk.id} className="flex justify-between py-1 text-xs border-b border-[var(--color-border-light)]">
-                    <span>{tsk.description}</span>
-                    <Badge variant={tsk.status === 'Pending' ? 'yellow' : tsk.status === 'In Progress' ? 'blue' : 'green'}>{tsk.status}</Badge>
-                  </div>
-                )) : <div className="text-xs text-[var(--color-text-light)]">{t.common.noTasks}</div>}
-              </div>
+              <Pagination page={result.page} totalPages={result.totalPages} total={result.total} onPageChange={page => onQueryChange(prev => ({ ...prev, page }))} />
             </>
+          ) : (
+            <EmptyState title="暂无工单" description="当前筛选条件下没有工单，重置筛选后查看全量队列。" />
           )}
-        </Drawer>
+        </PanelCard>
+
+        <DetailPanel title={activeTicket?.id ?? '未选择工单'} description={activeTicket ? '查看当前工单的策略判定、风险和复核信息。' : '从左侧选择工单后查看详情。'}>
+          {activeTicket ? (
+            <div className="space-y-4 text-xs">
+              <div>
+                <div className="text-sm font-semibold">{activeTicket.id}</div>
+                <div className="text-[var(--color-text-secondary)] mt-1 leading-6">{activeTicket.summary}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <InfoCard label="流程" value={displayWorkflow(activeTicket.workflowStage)} />
+                <InfoCard label="人工复核" value={displayBoolean(activeTicket.manualReview)} />
+                <InfoCard label="负责人" value={activeTicket.assignee} />
+                <InfoCard label="区域" value={activeTicket.region} />
+              </div>
+              <PanelCard title="策略判定" className="p-4">
+                <div className="space-y-2 text-[13px] text-[var(--color-text-secondary)]">
+                  <div><span className="text-[var(--color-text)] font-medium">所需动作：</span> {activeTicket.requiredAction}</div>
+                  <div><span className="text-[var(--color-text)] font-medium">策略判定：</span> {activeTicket.policyDecision}</div>
+                  <div><span className="text-[var(--color-text)] font-medium">客户承诺：</span> {activeTicket.executionOutcome.customerPromise}</div>
+                </div>
+              </PanelCard>
+              {activeReview ? (
+                <PanelCard title="人工复核结果" className="p-4">
+                  <div className="text-[13px]"><span className="font-medium">状态：</span> {displayReviewStatus(activeReview.status)}</div>
+                  <div className="mt-2 text-[var(--color-text-secondary)]">{activeReview.reason}</div>
+                </PanelCard>
+              ) : null}
+            </div>
+          ) : (
+            <EmptyState title="尚未选择工单" description="选择一条工单后，这里会展示流程、策略、复核和承诺信息。" compact />
+          )}
+        </DetailPanel>
       </div>
+    </div>
+  );
+}
+
+function InfoCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[18px] border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.55)] p-3">
+      <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--color-text-light)]">{label}</div>
+      <div className="font-medium mt-2">{value}</div>
     </div>
   );
 }

@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { useT } from '../../i18n';
+import { Button } from '../common/Button';
+import { PanelCard, inputCls } from '../common/PageChrome';
 import { Toggle } from '../common/Toggle';
 import { RAG_CONFIG_DEFAULTS } from '../../data/aiOperations';
 
 type RagConfig = typeof RAG_CONFIG_DEFAULTS;
+type RetrievalKey = keyof RagConfig['retrieval'];
+type RetrievalValue = RagConfig['retrieval'][RetrievalKey];
 
 export function RAGConfiguration() {
   const { t } = useT();
@@ -12,7 +16,7 @@ export function RAGConfiguration() {
   const updateParser = (k: keyof RagConfig['parser'], v: boolean) => setCfg(prev => ({ ...prev, parser: { ...prev.parser, [k]: v } }));
   const updateChunking = (k: keyof RagConfig['chunking'], v: string | number) => setCfg(prev => ({ ...prev, chunking: { ...prev.chunking, [k]: v } }));
   const updateEmbedding = (k: keyof RagConfig['embedding'], v: string | number) => setCfg(prev => ({ ...prev, embedding: { ...prev.embedding, [k]: v } }));
-  const updateRetrieval = (k: keyof RagConfig['retrieval'], v: any) => setCfg(prev => ({ ...prev, retrieval: { ...prev.retrieval, [k]: v } }));
+  const updateRetrieval = <K extends RetrievalKey>(k: K, v: RetrievalValue) => setCfg(prev => ({ ...prev, retrieval: { ...prev.retrieval, [k]: v } }));
   const updatePrompt = (k: keyof RagConfig['promptAssembly'], v: boolean | string) => setCfg(prev => ({ ...prev, promptAssembly: { ...prev.promptAssembly, [k]: v } }));
 
   const showToast = (msg: string) => {
@@ -23,23 +27,18 @@ export function RAGConfiguration() {
     setTimeout(() => el.remove(), 2500);
   };
 
-  const cardCls = 'bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] p-4';
-  const titleCls = 'text-sm font-semibold mb-3';
-  const inputCls = 'h-8 border border-[var(--color-border)] rounded-[var(--radius-sm)] px-2 text-xs bg-white outline-none focus:border-[var(--color-primary)] w-full';
   const labelCls = 'text-xs text-[var(--color-text-secondary)] mb-1 block';
 
   return (
     <div className="grid grid-cols-1 gap-4">
-      <div className={cardCls}>
-        <div className={titleCls}>{t.aiOps.parserConfig}</div>
+      <PanelCard title={t.aiOps.parserConfig} description="Normalize extraction behavior and document structure handling before chunks are created.">
         <Toggle label={t.aiOps.enableOCR} on={cfg.parser.enableOCR} onClick={() => updateParser('enableOCR', !cfg.parser.enableOCR)} />
         <Toggle label={t.aiOps.extractTables} on={cfg.parser.extractTables} onClick={() => updateParser('extractTables', !cfg.parser.extractTables)} />
         <Toggle label={t.aiOps.extractHeadings} on={cfg.parser.extractHeadings} onClick={() => updateParser('extractHeadings', !cfg.parser.extractHeadings)} />
         <Toggle label={t.aiOps.preserveStructure} on={cfg.parser.preserveStructure} onClick={() => updateParser('preserveStructure', !cfg.parser.preserveStructure)} />
-      </div>
+      </PanelCard>
 
-      <div className={cardCls}>
-        <div className={titleCls}>{t.aiOps.chunkingConfig}</div>
+      <PanelCard title={t.aiOps.chunkingConfig} description="Keep chunk density, overlap, and boundary behavior consistent across imported knowledge.">
         <div className="grid grid-cols-3 gap-3 max-[1000px]:grid-cols-2">
           <div>
             <label className={labelCls}>{t.aiOps.strategy}</label>
@@ -64,10 +63,9 @@ export function RAGConfiguration() {
             <input type="number" className={inputCls} value={cfg.chunking.maxChunkLength} onChange={e => updateChunking('maxChunkLength', Number(e.target.value))} />
           </div>
         </div>
-      </div>
+      </PanelCard>
 
-      <div className={cardCls}>
-        <div className={titleCls}>{t.aiOps.embeddingConfig}</div>
+      <PanelCard title={t.aiOps.embeddingConfig} description="Review embedding model and index versioning before rebuilding vector storage.">
         <div className="grid grid-cols-3 gap-3 max-[1000px]:grid-cols-2">
           <div>
             <label className={labelCls}>{t.aiOps.embeddingModel}</label>
@@ -88,13 +86,12 @@ export function RAGConfiguration() {
             <input className={inputCls} value={cfg.embedding.indexVersion} onChange={e => updateEmbedding('indexVersion', e.target.value)} />
           </div>
           <div className="flex items-end">
-            <button className="btn btn-secondary btn-sm" onClick={() => showToast(t.aiOps.rebuildStarted)}>{t.aiOps.rebuildIndex}</button>
+            <Button variant="secondary" size="sm" onClick={() => showToast(t.aiOps.rebuildStarted)}>{t.aiOps.rebuildIndex}</Button>
           </div>
         </div>
-      </div>
+      </PanelCard>
 
-      <div className={cardCls}>
-        <div className={titleCls}>{t.aiOps.retrievalConfigCard}</div>
+      <PanelCard title={t.aiOps.retrievalConfigCard} description="Align retrieval confidence thresholds, reranking, and fallback policies with live operations.">
         <div className="grid grid-cols-3 gap-3 max-[1000px]:grid-cols-2">
           <div>
             <label className={labelCls}>{t.aiOps.topK}</label>
@@ -136,10 +133,9 @@ export function RAGConfiguration() {
             </select>
           </div>
         </div>
-      </div>
+      </PanelCard>
 
-      <div className={cardCls}>
-        <div className={titleCls}>{t.aiOps.promptConfig}</div>
+      <PanelCard title={t.aiOps.promptConfig} description="Define which context blocks and policy constraints are always attached to generated responses.">
         <Toggle label={t.aiOps.includeCustomerProfile} on={cfg.promptAssembly.includeCustomerProfile} onClick={() => updatePrompt('includeCustomerProfile', !cfg.promptAssembly.includeCustomerProfile)} />
         <Toggle label={t.aiOps.includeOrderContext} on={cfg.promptAssembly.includeOrderContext} onClick={() => updatePrompt('includeOrderContext', !cfg.promptAssembly.includeOrderContext)} />
         <Toggle label={t.aiOps.includeConvHistory} on={cfg.promptAssembly.includeConvHistory} onClick={() => updatePrompt('includeConvHistory', !cfg.promptAssembly.includeConvHistory)} />
@@ -150,7 +146,7 @@ export function RAGConfiguration() {
           <label className={labelCls}>{t.aiOps.outputFormat}</label>
           <input className={inputCls} value={cfg.promptAssembly.outputFormat} onChange={e => updatePrompt('outputFormat', e.target.value)} />
         </div>
-      </div>
+      </PanelCard>
     </div>
   );
 }

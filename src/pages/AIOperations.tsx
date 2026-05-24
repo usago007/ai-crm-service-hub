@@ -1,397 +1,324 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import type { EvaluationRecord, IngestionJob, KnowledgeDocument, RagRun } from '../types';
 import { useT } from '../i18n';
 import { Badge } from '../components/common/Badge';
-import { RAG_PIPELINE, KNOWLEDGE_SOURCES, PROMPT_TEMPLATES, MODEL_POLICY, GUARDRAILS, EVALUATION_METRICS, EVALUATION_ITEMS, FEEDBACK_ITEMS, AUDIT_LOGS } from '../data/aiOperations';
-import { DocumentIngestion } from '../components/ai-ops/DocumentIngestion';
-import { RAGConfiguration } from '../components/ai-ops/RAGConfiguration';
-import { RAGTestLab } from '../components/ai-ops/RAGTestLab';
-import { CapabilityPipeline } from '../components/ai-ops/CapabilityPipeline';
+import { Button } from '../components/common/Button';
+import { DataTable } from '../components/common/DataTable';
+import { PageHeader, PanelCard, StatCard, inputCls } from '../components/common/PageChrome';
 
-const TABS = ['rag', 'sources', 'ingestion', 'retrieval', 'prompts', 'model', 'guardrails', 'evaluation', 'feedback', 'audit', 'testlab', 'pipeline'];
+interface AIOperationsProps {
+  documents: KnowledgeDocument[];
+  jobs: IngestionJob[];
+  ragRuns: RagRun[];
+  evaluations: EvaluationRecord[];
+  selectedRunId?: string;
+  onReplayRun: (ticketId: string) => void;
+  onCreateDocument: (payload: {
+    name: string;
+    sourceType: string;
+    knowledgeType: string;
+    scenario: string;
+    language: string;
+    owner: string;
+    version: string;
+    effectiveDate: string;
+  }) => void;
+  onReindexDocument: (id: string) => void;
+}
 
-export function AIOperations() {
+const TABS = ['registry', 'jobs', 'debugger', 'prompt', 'evaluation'] as const;
+
+export function AIOperations({
+  documents,
+  jobs,
+  ragRuns,
+  evaluations,
+  selectedRunId,
+  onReplayRun,
+  onCreateDocument,
+  onReindexDocument,
+}: AIOperationsProps) {
   const { t } = useT();
-  const [tab, setTab] = useState('rag');
-  const [expandedPrompt, setExpandedPrompt] = useState<number | null>(null);
+  const [tab, setTab] = useState<(typeof TABS)[number]>('debugger');
+  const [selectedDocumentScenario, setSelectedDocumentScenario] = useState('Shipping');
+  const [selectedRun, setSelectedRun] = useState(selectedRunId ?? ragRuns[0]?.id ?? '');
 
-  const tabLabels: Record<string, string> = {
-    rag: t.aiOps.ragPipeline,
-    sources: t.aiOps.knowledgeSources,
-    ingestion: t.aiOps.documentIngestion,
-    retrieval: t.aiOps.retrievalConfig,
-    prompts: t.aiOps.promptTemplates,
-    model: t.aiOps.modelPolicy,
-    guardrails: t.aiOps.guardrails,
-    evaluation: t.aiOps.evaluation,
-    feedback: t.aiOps.feedbackLoop,
-    audit: t.aiOps.auditLogs,
-    testlab: t.aiOps.ragTestLab,
-    pipeline: t.aiOps.capabilityPipeline,
-  };
+  const activeRun = useMemo(
+    () => ragRuns.find(item => item.id === selectedRun) ?? ragRuns[0],
+    [ragRuns, selectedRun],
+  );
 
-  const showToast = (msg: string) => {
-    const el = document.createElement('div');
-    el.className = 'fixed bottom-4 right-4 bg-[var(--color-success)] text-white px-4 py-2 rounded-lg text-xs shadow-lg z-[9999]';
-    el.textContent = msg;
-    document.body.appendChild(el);
-    setTimeout(() => el.remove(), 2500);
-  };
-
-  const statusColor = (s: string) => {
-    if (s === 'Active') return 'badge-green';
-    if (s === 'Warning') return 'badge-yellow';
-    if (s === 'Disabled') return 'badge-gray';
-    return 'badge-gray';
-  };
+  const activeDocumentCount = documents.filter(item => item.publishStatus === 'published').length;
+  const failedJobCount = jobs.filter(item => ['chunk_failed', 'embedding_failed', 'version_conflict', 'expired'].includes(item.status)).length;
+  const riskEvalCount = evaluations.filter(item => item.status === 'risk').length;
 
   return (
-    <div>
-      <div className="text-xl font-bold mb-1">{t.page.aiOperations}</div>
-      <div className="text-[13px] text-[var(--color-text-secondary)] mb-5">{t.page.subtitle_aiOperations}</div>
-
-      <div className="bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] p-4 mb-4 text-xs text-[var(--color-text-secondary)] leading-relaxed">
-        AI Operations manages how customer service AI retrieves knowledge, assembles prompts, applies risk policies, generates draft replies, and collects human feedback. AI suggestions are grounded in CRM context, order data, knowledge base chunks, business rules, and human review policies.
-      </div>
-
-      <div className="flex gap-0 border-b border-[var(--color-border)] mb-4 overflow-x-auto">
-        {TABS.map((k) => (
-          <div key={k} className={`px-3 py-2 text-[13px] cursor-pointer border-b-2 transition-all duration-[var(--transition)] whitespace-nowrap flex-shrink-0 ${tab === k ? 'text-[var(--color-primary)] border-b-[var(--color-primary)] font-medium' : 'text-[var(--color-text-secondary)] border-b-transparent hover:text-[var(--color-text)]'}`} onClick={() => setTab(k)}>
-            {tabLabels[k]}
+    <div className="space-y-4">
+      <PageHeader
+        eyebrow="Legacy AI Ops"
+        title={t.page.aiConsole}
+        description={t.page.subtitle_aiConsole}
+        aside={
+          <div className="grid grid-cols-3 gap-3 max-[1100px]:grid-cols-1">
+            <StatCard label="Published knowledge assets" value={String(activeDocumentCount)} detail="Active documents available to retrieval filters." />
+            <StatCard label="Knowledge incidents" value={String(failedJobCount)} detail="Expired, failed, or conflicting ingestion jobs requiring action." tone="warning" />
+            <StatCard label="Evaluation risks" value={String(riskEvalCount)} detail="Scenarios below target and blocking stable agent autonomy." tone="danger" />
           </div>
+        }
+      />
+
+      <div className="shell-card rounded-[24px] p-1.5 flex gap-1 overflow-x-auto">
+        {TABS.map(item => (
+          <button
+            key={item}
+            type="button"
+            className={`px-4 py-2.5 rounded-[16px] text-[13px] whitespace-nowrap transition-all duration-200 ${
+              tab === item
+                ? 'bg-[rgba(179,92,32,0.14)] text-[var(--color-primary)] shadow-[inset_0_0_0_1px_rgba(179,92,32,0.16)] font-medium'
+                : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[rgba(255,255,255,0.52)]'
+            }`}
+            onClick={() => setTab(item)}
+          >
+            {item === 'registry'
+              ? 'Knowledge Registry'
+              : item === 'jobs'
+              ? 'Ingestion Jobs'
+              : item === 'debugger'
+              ? 'Retrieval Debugger'
+              : item === 'prompt'
+              ? 'Prompt Assembly Inspector'
+              : 'Evaluation & Feedback'}
+          </button>
         ))}
       </div>
 
-      {tab === 'rag' && (
-        <div className="overflow-auto">
-          <table className="w-full border-collapse min-w-[700px]">
-            <thead>
-              <tr>
-                {['Step', 'Description', 'Status', 'Last Run', 'Output'].map(h => (
-                  <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)]">{h}</th>
+      {tab === 'registry' && (
+        <div className="grid grid-cols-[1.3fr_0.7fr] gap-4 max-[1200px]:grid-cols-1">
+          <DataTable
+            className="min-w-0"
+            columns={[
+              { key: 'document', label: 'Document', width: '28%' },
+              { key: 'scenario', label: 'Scenario' },
+              { key: 'type', label: 'Type' },
+              { key: 'language', label: 'Language' },
+              { key: 'version', label: 'Version' },
+              { key: 'status', label: 'Publish Status' },
+              { key: 'coverage', label: 'Coverage' },
+              { key: 'action', label: 'Action' },
+            ]}
+            emptyMessage="No knowledge assets found."
+          >
+                {documents.map(doc => (
+                  <tr key={doc.id}>
+                    <td className="px-4 py-3 text-[13px] border-b border-[var(--color-border-light)]">
+                      <div className="font-medium">{doc.name}</div>
+                      <div className="text-[11px] text-[var(--color-text-light)]">{doc.owner} · effective {doc.effectiveDate}</div>
+                    </td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{doc.scenario}</td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{doc.knowledgeType}</td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{doc.language}</td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{doc.version}</td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">
+                      <Badge variant={doc.publishStatus === 'published' ? 'green' : doc.publishStatus === 'version_conflict' || doc.publishStatus === 'expired' ? 'red' : 'yellow'}>
+                        {doc.publishStatus}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] tabular-nums">{doc.coverageScore}%</td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">
+                      <Button variant="ghost" size="sm" onClick={() => onReindexDocument(doc.id)}>
+                        Reindex
+                      </Button>
+                    </td>
+                  </tr>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {RAG_PIPELINE.map((s, i) => (
-                <tr key={i} className={i % 2 === 0 ? 'bg-[var(--color-bg)]' : ''}>
-                  <td className="px-3 py-2 text-[13px] border-b border-[var(--color-border-light)] font-medium">{s.step}</td>
-                  <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)] border-b border-[var(--color-border-light)]">{s.desc}</td>
-                  <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">
-                    <Badge variant={statusColor(s.status) as any}>{s.status}</Badge>
+          </DataTable>
+
+          <PanelCard title="Create mock ingestion job" description="New documents are created through the API contract. Complaint documents intentionally trigger version conflict branches so the UI can exercise failure handling.">
+            <div className="text-xs text-[var(--color-text-secondary)] mb-4">
+              New documents are created through the API contract. Complaint documents intentionally trigger version conflict branches so the UI can exercise failure handling.
+            </div>
+            <div className="mb-3">
+              <label className="text-xs text-[var(--color-text-secondary)] block mb-1">Scenario</label>
+              <select className={inputCls} value={selectedDocumentScenario} onChange={e => setSelectedDocumentScenario(e.target.value)}>
+                {['Shipping', 'Refund', 'Complaint', 'Address Change', 'Product Inquiry'].map(item => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </div>
+            <Button
+              size="sm"
+              onClick={() =>
+                onCreateDocument({
+                  name: `${selectedDocumentScenario} Playbook ${Date.now()}.pdf`,
+                  sourceType: 'PDF',
+                  knowledgeType: selectedDocumentScenario === 'Complaint' ? 'Business Rule' : 'Policy',
+                  scenario: selectedDocumentScenario,
+                  language: selectedDocumentScenario === 'Complaint' ? 'ZH' : 'EN',
+                  owner: 'Mock Ops',
+                  version: 'v1.0',
+                  effectiveDate: '2026-05-22',
+                })
+              }
+            >
+              Create mock document
+            </Button>
+          </PanelCard>
+        </div>
+      )}
+
+      {tab === 'jobs' && (
+        <DataTable
+          columns={[
+            { key: 'job', label: 'Job', width: '30%' },
+            { key: 'status', label: 'Status' },
+            { key: 'started', label: 'Started' },
+            { key: 'updated', label: 'Updated' },
+            { key: 'detail', label: 'Detail' },
+          ]}
+          emptyMessage="No ingestion jobs available."
+        >
+              {jobs.map(job => (
+                <tr key={job.id}>
+                  <td className="px-4 py-3 text-[13px] border-b border-[var(--color-border-light)]">
+                    <div className="font-medium">{job.documentName}</div>
+                    <div className="text-[11px] text-[var(--color-text-light)]">{job.id}</div>
                   </td>
-                  <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)] border-b border-[var(--color-border-light)]">{s.lastRun}</td>
-                  <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)] border-b border-[var(--color-border-light)]">{s.output}</td>
+                  <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">
+                    <Badge variant={job.status === 'published' || job.status === 'indexed' ? 'green' : job.status === 'version_conflict' || job.status === 'expired' ? 'red' : 'yellow'}>
+                      {job.status}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{job.startedAt}</td>
+                  <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{job.updatedAt}</td>
+                  <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{job.detail}</td>
                 </tr>
               ))}
-            </tbody>
-          </table>
-        </div>
+        </DataTable>
       )}
 
-      {tab === 'sources' && (
-        <div>
-          <div className="flex gap-2 mb-3">
-            <button className="btn btn-primary btn-sm" onClick={() => showToast('Sync initiated for all sources')}>Sync Source</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => showToast('Rebuild index queued')}>Rebuild Index</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => showToast('Opening chunk viewer')}>View Chunks</button>
-          </div>
-          <div className="overflow-auto">
-            <table className="w-full border-collapse min-w-[1100px]">
-              <thead>
-                <tr>
-                  {['Source Name', 'Source Type', 'Category', 'Language', 'Owner', 'Status', 'Last Sync', 'Docs', 'Chunks', 'Version', 'Actions'].map(h => (
-                    <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] whitespace-nowrap">{h}</th>
+      {tab === 'debugger' && activeRun && (
+        <div className="grid grid-cols-[0.9fr_1.1fr] gap-4 max-[1200px]:grid-cols-1">
+          <PanelCard title="Runs" description="Inspect query rewriting, filters, fallback reasons, and retrieval posture before replay.">
+            <div className="flex items-center justify-between mb-3 gap-3">
+              <div className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-light)]">Run selector</div>
+              <select className={inputCls} value={activeRun.id} onChange={e => setSelectedRun(e.target.value)}>
+                {ragRuns.map(run => (
+                  <option key={run.id} value={run.id}>{run.id} · {run.ticketId}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <div className="text-[var(--color-text-secondary)] mb-1">Original query</div>
+                <div className="bg-[var(--color-bg)] border border-[var(--color-border-light)] rounded p-2">{activeRun.originalQuery}</div>
+              </div>
+              <div>
+                <div className="text-[var(--color-text-secondary)] mb-1">Rewrite query</div>
+                <div className="bg-[var(--color-bg)] border border-[var(--color-border-light)] rounded p-2">{activeRun.rewrittenQuery}</div>
+              </div>
+              <div>
+                <div className="text-[var(--color-text-secondary)] mb-1">Metadata filters</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {activeRun.metadataFilters.map(filter => (
+                    <span key={filter} className="px-2 py-0.5 bg-[var(--color-primary-bg)] text-[var(--color-primary)] rounded text-[11px]">
+                      {filter}
+                    </span>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {KNOWLEDGE_SOURCES.map((s, i) => (
-                  <tr key={i} className={i % 2 === 0 ? 'bg-[var(--color-bg)]' : ''}>
-                    <td className="px-3 py-2 text-[13px] border-b border-[var(--color-border-light)] font-medium">{s.name}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{s.type}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]"><Badge variant="blue">{s.category}</Badge></td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{s.language}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{s.owner}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">
-                      <Badge variant={statusColor(s.status) as any}>{s.status}</Badge>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)] border-b border-[var(--color-border-light)]">{s.lastSync}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{s.docCount}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{s.chunkCount}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{s.version}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">
-                      <button className="text-[var(--color-primary)] hover:underline" onClick={() => showToast(`Syncing ${s.name}...`)}>Sync</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="border border-[var(--color-border-light)] rounded p-2">
+                  <div className="text-[var(--color-text-secondary)]">Fallback reason</div>
+                  <div className="mt-1">{activeRun.fallbackReason || 'None'}</div>
+                </div>
+                <div className="border border-[var(--color-border-light)] rounded p-2">
+                  <div className="text-[var(--color-text-secondary)]">Run status</div>
+                  <Badge variant={activeRun.status === 'healthy' ? 'green' : activeRun.status === 'warning' ? 'yellow' : 'red'}>
+                    {activeRun.status}
+                  </Badge>
+                </div>
+              </div>
+              <Button size="sm" onClick={() => onReplayRun(activeRun.ticketId)}>
+                Replay retrieval
+              </Button>
+            </div>
+          </PanelCard>
 
-      {tab === 'retrieval' && <RAGConfiguration />}
-
-      {tab === 'prompts' && (
-        <div className="overflow-auto">
-          <table className="w-full border-collapse min-w-[900px]">
-            <thead>
-              <tr>
-                {['Prompt Name', 'Scenario', 'Version', 'Status', 'Owner', 'Last Updated', 'Used By', 'Human Edit Rate', 'Actions'].map(h => (
-                  <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {PROMPT_TEMPLATES.map((p, i) => (
-                <>
-                  <tr key={i} className={i % 2 === 0 ? 'bg-[var(--color-bg)]' : ''}>
-                    <td className="px-3 py-2 text-[13px] border-b border-[var(--color-border-light)] font-medium">{p.name}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{p.scenario}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{p.version}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]"><Badge variant="green">Active</Badge></td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{p.owner}</td>
-                    <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)] border-b border-[var(--color-border-light)]">{p.updated}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{p.usedBy}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{p.humanEditRate}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">
-                      <button className="text-[var(--color-primary)] hover:underline" onClick={() => setExpandedPrompt(expandedPrompt === i ? null : i)}>
-                        {expandedPrompt === i ? 'Hide' : 'View Prompt'}
-                      </button>
-                    </td>
-                  </tr>
-                  {expandedPrompt === i && (
-                    <tr key={`${i}-detail`}>
-                      <td colSpan={9} className="px-4 py-3 bg-[var(--color-bg)] border-b border-[var(--color-border)]">
-                        <div className="grid grid-cols-2 gap-3 text-xs">
-                          <div><span className="text-[var(--color-text-secondary)] font-semibold">System Role:</span> {p.systemRole}</div>
-                          <div><span className="text-[var(--color-text-secondary)] font-semibold">Customer Context:</span> {p.customerContext}</div>
-                          <div><span className="text-[var(--color-text-secondary)] font-semibold">Order Context:</span> {p.orderContext}</div>
-                          <div><span className="text-[var(--color-text-secondary)] font-semibold">Retrieved Knowledge:</span> {p.retrievedKnowledge}</div>
-                          <div><span className="text-[var(--color-text-secondary)] font-semibold">Business Rules:</span> {p.businessRules}</div>
-                          <div><span className="text-[var(--color-text-secondary)] font-semibold">Tone Requirement:</span> {p.toneRequirement}</div>
-                          <div className="col-span-2">
-                            <span className="text-[var(--color-text-secondary)] font-semibold">Blocked Claims:</span>
-                            <ul className="list-disc pl-4 mt-1">
-                              {p.blockedClaims.map((c, j) => <li key={j} className="text-[var(--color-danger)]">{c}</li>)}
-                            </ul>
-                          </div>
-                          <div className="col-span-2">
-                            <span className="text-[var(--color-text-secondary)] font-semibold">Output Format:</span> {p.outputFormat}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
+          <PanelCard title="Candidates and rejection reasons" description="Track reranking outcomes, metadata alignment, and why candidates were suppressed.">
+            <div className="space-y-3">
+              {activeRun.candidates.map(candidate => (
+                <div key={candidate.id} className="border border-[var(--color-border-light)] rounded-[var(--radius-sm)] p-3">
+                  <div className="flex items-center justify-between gap-3 mb-1">
+                    <div className="font-medium text-[13px]">{candidate.source}</div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={candidate.selected ? 'green' : 'gray'}>{candidate.selected ? 'selected' : 'dropped'}</Badge>
+                      <span className="text-[11px] text-[var(--color-text-light)]">score {candidate.score.toFixed(2)} → rerank {candidate.rerankScore.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-[var(--color-text-secondary)] mb-2">{candidate.snippet}</div>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {Object.entries(candidate.metadata).map(([key, value]) => (
+                      <span key={key} className="px-1.5 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border-light)] text-[10px]">
+                        {key}: {value}
+                      </span>
+                    ))}
+                  </div>
+                  {!candidate.selected && (
+                    <div className="text-[11px] text-[var(--color-danger)]">Rejected: {candidate.rejectReason}</div>
                   )}
-                </>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {tab === 'model' && (
-        <div className="grid grid-cols-1 gap-4">
-          <div className="bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] p-4">
-            <div className="text-sm font-semibold mb-3">Model Configuration</div>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              {[
-                ['Primary Model', MODEL_POLICY.primaryModel],
-                ['Fallback Model', MODEL_POLICY.fallbackModel],
-                ['Embedding Model', MODEL_POLICY.embeddingModel],
-                ['Temperature', String(MODEL_POLICY.temperature)],
-                ['Max Output Tokens', String(MODEL_POLICY.maxTokens)],
-                ['Response Language', MODEL_POLICY.responseLanguage],
-                ['Citation Required', MODEL_POLICY.citationRequired ? 'Yes' : 'No'],
-                ['Auto Send', MODEL_POLICY.autoSend ? 'Enabled' : 'Disabled'],
-                ['Human Confirmation', MODEL_POLICY.humanConfirmation ? 'Required' : 'Not Required'],
-                ['Sensitive Case Routing', MODEL_POLICY.sensitiveCaseRouting ? 'Enabled' : 'Disabled'],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between py-1 border-b border-[var(--color-border-light)]">
-                  <span className="text-[var(--color-text-secondary)]">{k}</span>
-                  <span className="font-medium">{v}</span>
                 </div>
               ))}
             </div>
-          </div>
-
-          <div className="bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] p-4">
-            <div className="text-sm font-semibold mb-3">Scenario Policy Matrix</div>
-            <div className="overflow-auto">
-              <table className="w-full border-collapse min-w-[700px]">
-                <thead>
-                  <tr>
-                    {['Scenario', 'Model', 'Temperature', 'Auto Send', 'Manual Review', 'Fallback'].map(h => (
-                      <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)]">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {MODEL_POLICY.scenarioMatrix.map((s, i) => (
-                    <tr key={i} className={i % 2 === 0 ? 'bg-[var(--color-bg)]' : ''}>
-                      <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{s.scenario}</td>
-                      <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{s.model}</td>
-                      <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{s.temperature}</td>
-                      <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]"><Badge variant={s.autoSend === 'Yes' ? 'green' : 'gray'}>{s.autoSend}</Badge></td>
-                      <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]"><Badge variant={s.manualReview === 'Yes' ? 'red' : 'green'}>{s.manualReview}</Badge></td>
-                      <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{s.fallback}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          </PanelCard>
         </div>
       )}
 
-      {tab === 'guardrails' && (
-        <div className="overflow-auto">
-          <table className="w-full border-collapse min-w-[800px]">
-            <thead>
-              <tr>
-                {['Risk Scenario', 'Detection Rule', 'AI Permission', 'Blocked Action', 'Required Human Action', 'Status'].map(h => (
-                  <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {GUARDRAILS.map((g, i) => (
-                <tr key={i} className={i % 2 === 0 ? 'bg-[var(--color-bg)]' : ''}>
-                  <td className="px-3 py-2 text-[13px] border-b border-[var(--color-border-light)] font-medium">{g.scenario}</td>
-                  <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{g.detectionRule}</td>
-                  <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]"><Badge variant={g.aiPermission === 'No reply' ? 'red' : 'yellow'}>{g.aiPermission}</Badge></td>
-                  <td className="px-3 py-2 text-xs text-[var(--color-danger)] border-b border-[var(--color-border-light)]">{g.blockedAction}</td>
-                  <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{g.humanAction}</td>
-                  <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]"><Badge variant="green">{g.status}</Badge></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {tab === 'prompt' && activeRun && (
+        <div className="grid grid-cols-2 gap-4 max-[1200px]:grid-cols-1">
+          <PanelCard title="Prompt inputs" description="Audit the exact retrieval payload flowing into prompt assembly.">
+            <div className="space-y-3 text-xs">
+              <div><span className="text-[var(--color-text-secondary)]">Query:</span> {activeRun.originalQuery}</div>
+              <div><span className="text-[var(--color-text-secondary)]">Retrieved citations:</span> {activeRun.citations.map(item => `${item.source} ${item.match}`).join(', ')}</div>
+              <div><span className="text-[var(--color-text-secondary)]">Filters:</span> {activeRun.metadataFilters.join(', ')}</div>
+              <div><span className="text-[var(--color-text-secondary)]">Fallback:</span> {activeRun.fallbackReason || 'No fallback required'}</div>
+            </div>
+          </PanelCard>
+          <PanelCard title="Blocked claims and policy gates" description="Keep high-risk response pathways explicit and reviewable.">
+            <ul className="list-disc pl-4 text-xs text-[var(--color-text-secondary)] space-y-1">
+              <li>Do not promise refund or compensation without review approval.</li>
+              <li>Hide unpublished or expired documents from autonomous response logic.</li>
+              <li>Escalate if localized policy coverage is below threshold.</li>
+            </ul>
+          </PanelCard>
         </div>
       )}
 
       {tab === 'evaluation' && (
-        <div className="grid grid-cols-1 gap-4">
-          <div className="grid grid-cols-4 gap-3 max-[1400px]:grid-cols-2">
-            {EVALUATION_METRICS.map((m, i) => (
-              <div key={i} className="bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] p-4">
-                <div className="text-2xl font-bold leading-tight" style={m.color ? { color: m.color } : undefined}>{m.value}</div>
-                <div className="text-xs text-[var(--color-text-secondary)] mt-1">{m.label}</div>
-              </div>
-            ))}
-          </div>
-          <div className="overflow-auto border border-[var(--color-border)] rounded-[var(--radius)] bg-[var(--bg-card)]">
-            <table className="w-full border-collapse min-w-[700px]">
-              <thead>
-                <tr>
-                  {['Evaluation Item', 'Scenario', 'AI Output', 'Human Feedback', 'Score', 'Issue Type', 'Action'].map(h => (
-                    <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)]">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {EVALUATION_ITEMS.map((e, i) => (
-                  <tr key={i} className={i % 2 === 0 ? 'bg-[var(--color-bg)]' : ''}>
-                    <td className="px-3 py-2 text-[13px] border-b border-[var(--color-border-light)]">{e.item}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{e.scenario}</td>
-                    <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)] border-b border-[var(--color-border-light)]">{e.aiOutput}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">
-                      <Badge variant={e.humanFeedback === 'Good' ? 'green' : e.humanFeedback === 'Needs review' ? 'yellow' : 'red'}>{e.humanFeedback}</Badge>
-                    </td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">
-                      <span className={`font-semibold ${e.score >= 90 ? 'text-[var(--color-success)]' : e.score >= 75 ? 'text-[var(--color-warning)]' : 'text-[var(--color-danger)]'}`}>{e.score}</span>
-                    </td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{e.issueType}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{e.action}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {tab === 'feedback' && (
-        <div className="grid grid-cols-1 gap-4">
-          <div className="bg-[var(--bg-card)] border border-[var(--color-border)] rounded-[var(--radius)] p-4">
-            <div className="text-sm font-semibold mb-3">Feedback Loop Flow</div>
-            <div className="flex items-center gap-2 text-xs flex-wrap">
-              {['AI Suggestion', 'Agent Action', 'Adopt / Edit / Reject', 'Feedback Label', 'Prompt Update / Rule Update', 'Training Dataset'].map((step, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <div className="px-3 py-1.5 bg-[var(--color-primary-bg)] text-[var(--color-primary)] rounded-[var(--radius-sm)] font-medium">{step}</div>
-                  {i < 5 && <span className="text-[var(--color-text-light)]">→</span>}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="overflow-auto border border-[var(--color-border)] rounded-[var(--radius)] bg-[var(--bg-card)]">
-            <table className="w-full border-collapse min-w-[800px]">
-              <thead>
-                <tr>
-                  {['Ticket ID', 'Scenario', 'Agent Action', 'Edit Rate', 'Feedback Label', 'Suggested Improvement', 'Status'].map(h => (
-                    <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)]">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {FEEDBACK_ITEMS.map((f, i) => (
-                  <tr key={i} className={i % 2 === 0 ? 'bg-[var(--color-bg)]' : ''}>
-                    <td className="px-3 py-2 text-[13px] border-b border-[var(--color-border-light)] font-medium">{f.ticketId}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{f.scenario}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{f.agentAction}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{f.editRate}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">
-                      <Badge variant={f.feedbackLabel === 'Good' ? 'green' : f.feedbackLabel === 'Too direct' ? 'yellow' : 'red'}>{f.feedbackLabel}</Badge>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)] border-b border-[var(--color-border-light)]">{f.suggestedImprovement}</td>
-                    <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">
-                      <Badge variant={f.status === 'Pending Review' ? 'yellow' : f.status === 'In Progress' ? 'blue' : 'green'}>{f.status}</Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {tab === 'audit' && (
-        <div className="overflow-auto">
-          <table className="w-full border-collapse min-w-[1000px]">
-            <thead>
-              <tr>
-                {['Time', 'Ticket ID', 'Customer', 'AI Action', 'Model', 'Prompt Version', 'Retrieved Sources', 'Confidence', 'Risk Level', 'Agent Action'].map(h => (
-                  <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {AUDIT_LOGS.map((a, i) => (
-                <tr key={i} className={i % 2 === 0 ? 'bg-[var(--color-bg)]' : ''}>
-                  <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)] border-b border-[var(--color-border-light)] whitespace-nowrap">{a.time}</td>
-                  <td className="px-3 py-2 text-[13px] border-b border-[var(--color-border-light)] font-medium">{a.ticketId}</td>
-                  <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{a.customer}</td>
-                  <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{a.aiAction}</td>
-                  <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{a.model}</td>
-                  <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{a.promptVersion}</td>
-                  <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{a.retrievedSources} sources</td>
-                  <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">
-                    <span className={`font-semibold ${parseInt(a.confidence) >= 85 ? 'text-[var(--color-success)]' : parseInt(a.confidence) >= 70 ? 'text-[var(--color-warning)]' : 'text-[var(--color-danger)]'}`}>{a.confidence}</span>
+        <DataTable
+          columns={[
+            { key: 'scenario', label: 'Scenario' },
+            { key: 'metric', label: 'Metric' },
+            { key: 'score', label: 'Score' },
+            { key: 'baseline', label: 'Baseline' },
+            { key: 'status', label: 'Status' },
+          ]}
+          emptyMessage="No evaluation feedback available."
+        >
+              {evaluations.map(item => (
+                <tr key={item.id}>
+                  <td className="px-4 py-3 text-[13px] border-b border-[var(--color-border-light)]">{item.scenario}</td>
+                  <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{item.metric}</td>
+                  <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{item.score}</td>
+                  <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{item.baseline}</td>
+                  <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">
+                    <Badge variant={item.status === 'good' ? 'green' : item.status === 'watch' ? 'yellow' : 'red'}>
+                      {item.status}
+                    </Badge>
                   </td>
-                  <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">
-                    <Badge variant={a.riskLevel === 'High' ? 'red' : a.riskLevel === 'Medium' ? 'yellow' : 'green'}>{a.riskLevel}</Badge>
-                  </td>
-                  <td className="px-3 py-2 text-xs border-b border-[var(--color-border-light)]">{a.agentAction}</td>
                 </tr>
               ))}
-            </tbody>
-          </table>
-        </div>
+        </DataTable>
       )}
-
-      {tab === 'ingestion' && <DocumentIngestion />}
-      {tab === 'testlab' && <RAGTestLab />}
-      {tab === 'pipeline' && <CapabilityPipeline />}
     </div>
   );
 }

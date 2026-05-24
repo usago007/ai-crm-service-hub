@@ -1,7 +1,7 @@
 import type { Ticket, Customer } from '../../types';
 import { useT } from '../../i18n';
-import { Badge } from '../common/Badge';
-import { slaSt, prioCls, statCls, chIcon, fmtDate } from '../../utils/format';
+import { Badge, type BadgeVariant } from '../common/Badge';
+import { slaSt, chIcon, fmtDate } from '../../utils/format';
 import { Search } from 'lucide-react';
 
 interface ConversationListProps {
@@ -11,6 +11,22 @@ interface ConversationListProps {
   onSelectTicket: (id: string) => void;
   searchQuery: string;
 }
+
+const priorityVariantMap: Record<Ticket['priority'], BadgeVariant> = {
+  Urgent: 'red',
+  High: 'orange',
+  Normal: 'blue',
+  Low: 'gray',
+};
+
+const statusVariantMap: Record<Ticket['status'], BadgeVariant> = {
+  New: 'blue',
+  'In Progress': 'yellow',
+  'Pending Review': 'red',
+  'Waiting Customer': 'gray',
+  Closed: 'green',
+  Escalated: 'red',
+};
 
 export function ConversationList({ tickets, customers, selectedTicketId, onSelectTicket, searchQuery }: ConversationListProps) {
   const { t } = useT();
@@ -55,7 +71,7 @@ export function ConversationList({ tickets, customers, selectedTicketId, onSelec
               <div
                 key={tk.id}
                 className={`px-3.5 py-3 border-b border-[var(--color-border-light)] cursor-pointer transition-all duration-[var(--transition)] ${
-                  active ? 'bg-[var(--color-primary-bg)] border-l-3 border-l-[var(--color-primary)]' : 'hover:bg-[var(--color-bg)]'
+                  active ? 'bg-[var(--color-primary-bg)] shadow-[inset_3px_0_0_var(--color-primary)]' : 'hover:bg-[var(--color-bg)]'
                 }`}
                 onClick={() => onSelectTicket(tk.id)}
               >
@@ -68,8 +84,8 @@ export function ConversationList({ tickets, customers, selectedTicketId, onSelec
                 </Badge>
                 <div className="text-xs text-[var(--color-text-secondary)] overflow-hidden text-ellipsis whitespace-nowrap mb-1">{tk.summary}</div>
                 <div className="flex gap-1 flex-wrap">
-                  <Badge variant={prioCls(tk.priority).replace('badge-', '') as any} className="text-[10px]">{tk.priority}</Badge>
-                  <Badge variant={statCls(tk.status).replace('badge-', '') as any} className="text-[10px]">{tk.status}</Badge>
+                  <Badge variant={priorityVariantMap[tk.priority]} className="text-[10px]">{tk.priority}</Badge>
+                  <Badge variant={statusVariantMap[tk.status]} className="text-[10px]">{tk.status}</Badge>
                 </div>
                 <div className="flex gap-1 items-center mt-1">
                   {tk.aiSuggested && <span className="w-4 h-4 rounded-[3px] bg-[var(--color-primary-bg)] text-[var(--color-primary)] text-[9px] flex items-center justify-center font-bold" title={t.badgeLabel.ai}>AI</span>}
