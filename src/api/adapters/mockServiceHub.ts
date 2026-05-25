@@ -31,6 +31,7 @@ import type {
   ListQuery,
   Order,
   OrderFilters,
+  TaskFilters,
   PagedResult,
   RagRun,
   RagTestRun,
@@ -123,6 +124,15 @@ function filterOrders(items: Order[], filters: OrderFilters, customers: Customer
     if (filters.paymentStatus && item.paymentStatus !== filters.paymentStatus) return false;
     if (filters.country && customer?.country !== filters.country) return false;
     if (filters.risk && filters.risk === 'risk_only' && !item.riskAlert) return false;
+    return true;
+  });
+}
+
+function filterTasks(items: FollowUpTask[], filters: TaskFilters) {
+  return items.filter(item => {
+    if (filters.status && item.status !== filters.status) return false;
+    if (filters.priority && item.priority !== filters.priority) return false;
+    if (filters.triggeredBy && item.triggeredBy !== filters.triggeredBy) return false;
     return true;
   });
 }
@@ -334,6 +344,11 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
     async getOrders(query) {
       const next = cloneSnapshot(snapshot);
       const filtered = applySearch(filterOrders(next.orders, query.filters, next.customers), query.search, item => `${item.id} ${item.carrier} ${item.fulfillmentStatus} ${item.paymentStatus}`);
+      return paginate(sortByKey(filtered, query.sortBy, query.sortOrder), query);
+    },
+    async getTasks(query) {
+      const next = cloneSnapshot(snapshot);
+      const filtered = applySearch(filterTasks(next.tasks, query.filters), query.search, item => `${item.description} ${item.ticketId} ${item.owner} ${item.triggeredBy}`);
       return paginate(sortByKey(filtered, query.sortBy, query.sortOrder), query);
     },
     async retrieveTicket(request: TicketRetrieveRequest) {

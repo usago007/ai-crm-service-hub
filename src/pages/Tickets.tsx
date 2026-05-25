@@ -1,9 +1,11 @@
 import type { ListQuery, PagedResult, ReviewDecision, ServiceTicket, TicketFilters } from '../types';
+import { useState } from 'react';
 import { useT } from '../i18n';
 import { Badge } from '../components/common/Badge';
 import { Pagination } from '../components/common/Pagination';
 import { Button } from '../components/common/Button';
-import { DetailPanel, EmptyState, FilterBar, PageHeader, PanelCard, StatCard, inputCls } from '../components/common/PageChrome';
+import { Drawer } from '../components/common/Drawer';
+import { EmptyState, FilterBar, PanelCard, StatCard, SummaryHeader, inputCls } from '../components/common/PageChrome';
 import { displayBoolean, displayChannel, displayIssueType, displayReviewStatus, displayRiskLevel, displayWorkflow, displayTicketStatus } from '../utils/display';
 
 interface TicketsPageProps {
@@ -18,6 +20,7 @@ interface TicketsPageProps {
 
 export function TicketsPage({ result, reviews, query, onQueryChange, selectedTicketId, onSelectTicket, onViewTicket }: TicketsPageProps) {
   const { t } = useT();
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const activeTicket = selectedTicketId ? result.items.find(ticket => ticket.id === selectedTicketId) ?? result.items[0] ?? null : result.items[0] ?? null;
   const activeReview = activeTicket ? reviews.find(item => item.id === activeTicket.reviewDecisionId) ?? null : null;
   const reviewQueue = result.items.filter(ticket => ticket.manualReview).length;
@@ -25,10 +28,7 @@ export function TicketsPage({ result, reviews, query, onQueryChange, selectedTic
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        eyebrow="Ticket governance"
-        title={t.page.tickets}
-        description={t.page.subtitle_tickets}
+      <SummaryHeader
         aside={
           <div className="grid grid-cols-3 gap-3 max-[900px]:grid-cols-1">
             <StatCard label="工单总量" value={String(result.total)} detail="当前筛选条件下的客服工单。" />
@@ -51,15 +51,16 @@ export function TicketsPage({ result, reviews, query, onQueryChange, selectedTic
           <option value="">全部渠道</option>
           {['Email', 'Live Chat', 'Ticket'].map(item => <option key={item} value={item}>{displayChannel(item as ServiceTicket['channel'])}</option>)}
         </select>
-        <select className={inputCls} value={query.filters.riskLevel ?? ''} onChange={e => onQueryChange(prev => ({ ...prev, page: 1, filters: { ...prev.filters, riskLevel: e.target.value || undefined } }))}>
-          <option value="">全部风险</option>
-          {['Low', 'Medium', 'High'].map(item => <option key={item} value={item}>{displayRiskLevel(item)}</option>)}
-        </select>
-        <Button variant="secondary" size="sm" onClick={() => onQueryChange(prev => ({ ...prev, page: 1, filters: {} }))}>重置筛选</Button>
+        <div className="filter-compact-actions">
+          <select className={inputCls} value={query.filters.riskLevel ?? ''} onChange={e => onQueryChange(prev => ({ ...prev, page: 1, filters: { ...prev.filters, riskLevel: e.target.value || undefined } }))}>
+            <option value="">全部风险</option>
+            {['Low', 'Medium', 'High'].map(item => <option key={item} value={item}>{displayRiskLevel(item)}</option>)}
+          </select>
+          <Button variant="secondary" size="sm" onClick={() => onQueryChange(prev => ({ ...prev, page: 1, filters: {} }))}>重置筛选</Button>
+        </div>
       </FilterBar>
 
-      <div className="grid grid-cols-[minmax(0,1fr)_400px] gap-4 max-[1260px]:grid-cols-1">
-        <PanelCard title="工单队列" description="统一查看意图、流程阶段、风险等级和人工复核状态。">
+      <PanelCard title="工单队列" description="统一查看意图、流程阶段、风险等级和人工复核状态。点击工单号或查看按钮后在抽屉查看详情。">
           {result.items.length > 0 ? (
             <>
               <div className="overflow-auto">
@@ -75,8 +76,28 @@ export function TicketsPage({ result, reviews, query, onQueryChange, selectedTic
                     {result.items.map(ticket => {
                       const review = reviews.find(item => item.id === ticket.reviewDecisionId);
                       return (
-                        <tr key={ticket.id} className={`cursor-pointer border-b border-[var(--color-border-light)] ${activeTicket?.id === ticket.id ? 'bg-[var(--color-primary-bg)]' : 'hover:bg-[rgba(255,255,255,0.42)]'}`} onClick={() => onSelectTicket(ticket.id)}>
-                          <td className="px-4 py-3 text-[13px]"><div className="font-semibold">{ticket.id}</div><div className="text-[11px] text-[var(--color-text-light)] mt-1">{displayIssueType(ticket.issueType)}</div></td>
+                        <tr
+                          key={ticket.id}
+                          className={`cursor-pointer border-b border-[var(--color-border-light)] ${activeTicket?.id === ticket.id ? 'bg-[var(--color-primary-bg)]' : 'hover:bg-[rgba(255,255,255,0.42)]'}`}
+                          onClick={() => {
+                            onSelectTicket(ticket.id);
+                            setDrawerOpen(true);
+                          }}
+                        >
+                          <td className="px-4 py-3 text-[13px]">
+                            <button
+                              type="button"
+                              className="font-semibold text-left hover:text-[var(--color-primary)]"
+                              onClick={event => {
+                                event.stopPropagation();
+                                onSelectTicket(ticket.id);
+                                setDrawerOpen(true);
+                              }}
+                            >
+                              {ticket.id}
+                            </button>
+                            <div className="text-[11px] text-[var(--color-text-light)] mt-1">{displayIssueType(ticket.issueType)}</div>
+                          </td>
                           <td className="px-4 py-3 text-xs">{ticket.intent}</td>
                           <td className="px-4 py-3 text-xs">{displayChannel(ticket.channel)}</td>
                           <td className="px-4 py-3 text-xs"><Badge variant="blue">{displayWorkflow(ticket.workflowStage)}</Badge></td>
@@ -86,7 +107,15 @@ export function TicketsPage({ result, reviews, query, onQueryChange, selectedTic
                           <td className="px-4 py-3 text-xs">{ticket.region}</td>
                           <td className="px-4 py-3 text-xs"><Badge variant={review?.status === 'approved' ? 'green' : review?.status === 'pending' ? 'yellow' : 'red'}>{review ? displayReviewStatus(review.status) : '无'}</Badge></td>
                           <td className="px-4 py-3 text-xs">
-                            <Button variant="ghost" size="sm" onClick={event => { event.stopPropagation(); onViewTicket(ticket.id); }}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={event => {
+                                event.stopPropagation();
+                                onSelectTicket(ticket.id);
+                                setDrawerOpen(true);
+                              }}
+                            >
                               {t.common.view}
                             </Button>
                           </td>
@@ -101,40 +130,50 @@ export function TicketsPage({ result, reviews, query, onQueryChange, selectedTic
           ) : (
             <EmptyState title="暂无工单" description="当前筛选条件下没有工单，重置筛选后查看全量队列。" />
           )}
-        </PanelCard>
+      </PanelCard>
 
-        <DetailPanel title={activeTicket?.id ?? '未选择工单'} description={activeTicket ? '查看当前工单的策略判定、风险和复核信息。' : '从左侧选择工单后查看详情。'}>
-          {activeTicket ? (
-            <div className="space-y-4 text-xs">
-              <div>
-                <div className="text-sm font-semibold">{activeTicket.id}</div>
-                <div className="text-[var(--color-text-secondary)] mt-1 leading-6">{activeTicket.summary}</div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <InfoCard label="流程" value={displayWorkflow(activeTicket.workflowStage)} />
-                <InfoCard label="人工复核" value={displayBoolean(activeTicket.manualReview)} />
-                <InfoCard label="负责人" value={activeTicket.assignee} />
-                <InfoCard label="区域" value={activeTicket.region} />
-              </div>
-              <PanelCard title="策略判定" className="p-4">
-                <div className="space-y-2 text-[13px] text-[var(--color-text-secondary)]">
-                  <div><span className="text-[var(--color-text)] font-medium">所需动作：</span> {activeTicket.requiredAction}</div>
-                  <div><span className="text-[var(--color-text)] font-medium">策略判定：</span> {activeTicket.policyDecision}</div>
-                  <div><span className="text-[var(--color-text)] font-medium">客户承诺：</span> {activeTicket.executionOutcome.customerPromise}</div>
-                </div>
-              </PanelCard>
-              {activeReview ? (
-                <PanelCard title="人工复核结果" className="p-4">
-                  <div className="text-[13px]"><span className="font-medium">状态：</span> {displayReviewStatus(activeReview.status)}</div>
-                  <div className="mt-2 text-[var(--color-text-secondary)]">{activeReview.reason}</div>
-                </PanelCard>
-              ) : null}
+      <Drawer
+        open={drawerOpen && Boolean(activeTicket)}
+        onClose={() => setDrawerOpen(false)}
+        title={activeTicket?.id ?? '工单详情'}
+        actions={
+          activeTicket ? (
+            <Button size="sm" onClick={() => onViewTicket(activeTicket.id)}>
+              进入客服工作台
+            </Button>
+          ) : null
+        }
+      >
+        {activeTicket ? (
+          <div className="space-y-4 text-xs">
+            <div>
+              <div className="text-sm font-semibold">{activeTicket.id}</div>
+              <div className="text-[var(--color-text-secondary)] mt-1 leading-6">{activeTicket.summary}</div>
             </div>
-          ) : (
-            <EmptyState title="尚未选择工单" description="选择一条工单后，这里会展示流程、策略、复核和承诺信息。" compact />
-          )}
-        </DetailPanel>
-      </div>
+            <div className="grid grid-cols-2 gap-2">
+              <InfoCard label="流程" value={displayWorkflow(activeTicket.workflowStage)} />
+              <InfoCard label="人工复核" value={displayBoolean(activeTicket.manualReview)} />
+              <InfoCard label="负责人" value={activeTicket.assignee} />
+              <InfoCard label="区域" value={activeTicket.region} />
+            </div>
+            <PanelCard title="策略判定" className="p-4">
+              <div className="space-y-2 text-[13px] text-[var(--color-text-secondary)]">
+                <div><span className="text-[var(--color-text)] font-medium">所需动作：</span> {activeTicket.requiredAction}</div>
+                <div><span className="text-[var(--color-text)] font-medium">策略判定：</span> {activeTicket.policyDecision}</div>
+                <div><span className="text-[var(--color-text)] font-medium">客户承诺：</span> {activeTicket.executionOutcome.customerPromise}</div>
+              </div>
+            </PanelCard>
+            {activeReview ? (
+              <PanelCard title="人工复核结果" className="p-4">
+                <div className="text-[13px]"><span className="font-medium">状态：</span> {displayReviewStatus(activeReview.status)}</div>
+                <div className="mt-2 text-[var(--color-text-secondary)]">{activeReview.reason}</div>
+              </PanelCard>
+            ) : null}
+          </div>
+        ) : (
+          <EmptyState title="尚未选择工单" description="从列表选择工单后查看详情。" compact />
+        )}
+      </Drawer>
     </div>
   );
 }

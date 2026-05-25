@@ -3,7 +3,7 @@ import type { Agent, SettingsData } from '../types';
 import { Badge } from '../components/common/Badge';
 import { DataTable } from '../components/common/DataTable';
 import { Toggle } from '../components/common/Toggle';
-import { PageHeader, PanelCard, StatCard, inputCls } from '../components/common/PageChrome';
+import { PanelCard, StatCard, SummaryHeader, inputCls } from '../components/common/PageChrome';
 import { useT, type Language } from '../i18n';
 
 interface SettingsProps {
@@ -37,12 +37,15 @@ export function Settings({ lang, onLanguageChange, settings, agents }: SettingsP
 
   return (
     <div className="space-y-4">
-      <PageHeader eyebrow="Admin center" title={t.page.adminSettings} description={t.page.subtitle_adminSettings} />
-      <div className="grid grid-cols-3 gap-3 max-[1100px]:grid-cols-1">
-        <StatCard label="语言环境" value={lang === 'zh' ? '中文' : lang} detail="后台操作语言与基础文案入口。" />
-        <StatCard label="团队席位" value={String(agents.length)} detail="当前可见的在线客服与管理成员。" />
-        <StatCard label="通知开关" value={String(Object.values(settings.notifications).filter(Boolean).length)} detail="已启用的提醒规则数量。" tone="warning" />
-      </div>
+      <SummaryHeader
+        aside={
+          <div className="grid grid-cols-3 gap-3 max-[1100px]:grid-cols-1">
+            <StatCard label="语言环境" value={lang === 'zh' ? '中文' : lang} detail="后台操作语言与基础文案入口。" />
+            <StatCard label="团队席位" value={String(agents.length)} detail="当前可见的在线客服与管理成员。" />
+            <StatCard label="通知开关" value={String(Object.values(settings.notifications).filter(Boolean).length)} detail="已启用的提醒规则数量。" tone="warning" />
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-[260px_minmax(0,1fr)] gap-5 max-[1100px]:grid-cols-1">
         <PanelCard title="设置分组" className="p-3">

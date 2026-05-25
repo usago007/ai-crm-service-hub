@@ -1,11 +1,13 @@
+import type { ReactNode } from 'react';
 import type { CustomerProfile, ListQuery, Message, Order, PagedResult, ReplyDraft, ReviewDecision, ServiceTicket, TicketAction, TicketFilters } from '../types';
 import { useT } from '../i18n';
 import { Badge } from '../components/common/Badge';
 import { Pagination } from '../components/common/Pagination';
 import { Button } from '../components/common/Button';
-import { DetailPanel, EmptyState, FilterBar, PageHeader, PanelCard, StatCard, inputCls } from '../components/common/PageChrome';
-import { AlertTriangle, Bot, CheckSquare, Save, Send } from 'lucide-react';
-import { displayActionStatus, displayChannel, displayFulfillmentStatus, displayIssueType, displayLanguage, displayPaymentStatus, displayReviewStatus, displayRiskLevel, displayWorkflow } from '../utils/display';
+import { DetailPanel, EmptyState, PanelCard, inputCls } from '../components/common/PageChrome';
+import { AlertTriangle, Bot, CheckSquare, ChevronDown, ChevronUp, Save, Send, SlidersHorizontal } from 'lucide-react';
+import { displayChannel, displayFulfillmentStatus, displayIssueType, displayLanguage, displayPaymentStatus, displayReviewStatus, displayRiskLevel, displayTicketStatus, displayWorkflow } from '../utils/display';
+import { useMemo, useState } from 'react';
 
 interface CustomerServiceProps {
   result: PagedResult<ServiceTicket>;
@@ -31,16 +33,6 @@ interface CustomerServiceProps {
   onRunAction: (ticketId: string, actionId: string) => void;
 }
 
-const stageVariant: Record<ServiceTicket['workflowStage'], 'gray' | 'blue' | 'yellow' | 'green' | 'red'> = {
-  triage: 'gray',
-  retrieve: 'blue',
-  draft: 'blue',
-  review: 'yellow',
-  execute: 'red',
-  'follow-up': 'blue',
-  resolved: 'green',
-};
-
 export function CustomerService({
   result,
   query,
@@ -65,6 +57,11 @@ export function CustomerService({
   onRunAction,
 }: CustomerServiceProps) {
   const { t } = useT();
+  const [showConversation, setShowConversation] = useState(false);
+  const [showRiskDetails, setShowRiskDetails] = useState(false);
+  const [showRagEvidence, setShowRagEvidence] = useState(false);
+  const [showSourceTrace, setShowSourceTrace] = useState(false);
+  const [queueFilterOpen, setQueueFilterOpen] = useState(false);
   const activeTicket = selectedTicketId ? result.items.find(item => item.id === selectedTicketId) ?? result.items[0] ?? null : result.items[0] ?? null;
   const activeCustomer = customers.find(item => item.id === activeTicket?.customerId) ?? null;
   const activeOrder = orders.find(item => item.customerId === activeTicket?.customerId) ?? null;
@@ -73,82 +70,185 @@ export function CustomerService({
   const activeReview = reviews.find(item => item.id === activeTicket?.reviewDecisionId) ?? null;
   const activeActions = actions.filter(item => activeTicket?.actionIds.includes(item.id));
   const sendBlocked = activeTicket?.sendGuardrailResult?.blocked ?? false;
-  const reviewQueue = result.items.filter(item => item.manualReview).length;
-  const blockedCount = result.items.filter(item => item.sendGuardrailResult?.blocked).length;
+  const visibleMessages = showConversation ? activeMessages : activeMessages.slice(-2);
+  const latestCustomerMessage = [...activeMessages].reverse().find(item => item.sender === 'customer') ?? null;
+  const riskRuleName = activeDraft?.sourceTrace?.scenarioConfigName ?? `${displayIssueType(activeTicket?.issueType ?? 'Complaint')}策略`;
+  const riskReason = activeTicket?.sendGuardrailResult?.reason
+    ?? activeReview?.reason
+    ?? (activeTicket?.manualReview ? '当前场景命中高敏流程，需要先人工确认，再决定是否向客户发送。' : '当前问题未命中强制复核策略，可按标准路径继续处理。');
+  const needsChecklist = useMemo(
+    () => Boolean(activeDraft?.sourceTrace?.scenario && ['Refund', 'Complaint', 'Compensation', 'Chargeback'].includes(activeDraft.sourceTrace.scenario)),
+    [activeDraft],
+  );
+  const checklist = useMemo(
+    () => buildReviewChecklist({
+      ticket: activeTicket,
+      customer: activeCustomer,
+      order: activeOrder,
+      draft: activeDraft,
+      review: activeReview,
+      sendBlocked,
+      riskReason,
+    }),
+    [activeCustomer, activeDraft, activeOrder, activeReview, activeTicket, riskReason, sendBlocked],
+  );
+  const blockedChecklistItem = checklist.find(item => item.status === 'Blocked') ?? checklist.find(item => item.status === 'Pending') ?? null;
+  const checklistBlocked = needsChecklist && checklist.some((item, index) => index < checklist.length - 1 && item.status !== 'Completed');
+  const canSend = !sendBlocked && !checklistBlocked;
+  const statusSummary = activeTicket
+    ? `${displayRiskLevel(activeTicket.riskLevel)} · ${displayWorkflow(activeTicket.workflowStage)} · ${canSend ? '可发送' : '不可发送'}`
+    : '';
+  const conclusionSummary = sendBlocked
+    ? `高风险${displayIssueType(activeTicket?.issueType ?? 'Complaint')}，AI 不允许直接发送。`
+    : '当前未命中发送阻断，可以进入最终人工发送。';
+  const blockingReason = sendBlocked
+    ? activeTicket?.policyDecision ?? riskReason
+    : checklistBlocked
+    ? `${blockedChecklistItem?.label ?? '人工复核 Checklist'}尚未完成。`
+    : '当前没有发送阻塞。';
+  const recommendedAction = canSend
+    ? '检查草稿措辞后，由客服人工点击最终发送。'
+    : `优先完成${blockedChecklistItem?.label ?? '人工复核'}，再${activeTicket?.requiredAction ?? '决定是否发送回复'}。`;
+  const sendDecision = sendBlocked
+    ? { label: '不可发送', tone: 'red' as const, detail: activeTicket?.sendGuardrailResult?.reason ?? '当前流程仍有复核阻断，不能直接发送。' }
+    : { label: '可发送', tone: 'green' as const, detail: '当前场景已通过现有护栏与复核条件，可由客服人工发送。' };
+  const ragEvidenceSummary = activeDraft
+    ? `命中 ${activeDraft.citations.length} 个政策文档，最高匹配 ${highestCitation(activeDraft)}%，用于判断${displayIssueType(activeTicket?.issueType ?? 'Complaint')}。`
+    : '暂无 RAG 证据，请先生成 AI 草稿。';
+  const customerOverview = activeCustomer
+    ? `${activeCustomer.name}是${activeCustomer.country}${displayLanguage(activeCustomer.preferredLanguage)}客户，当前围绕${displayIssueType(activeTicket?.issueType ?? 'Complaint')}发起服务请求。${activeOrder ? `订单${displayPaymentStatus(activeOrder.paymentStatus)}，履约${displayFulfillmentStatus(activeOrder.fulfillmentStatus)}。` : ''}${sendBlocked ? '建议先核对证据与政策适用范围，不要直接承诺退款或赔偿。' : '建议按当前知识引用确认措辞后，由客服人工发送最终回复。'}`
+    : '暂无客户概览。';
+  const primaryAction = !activeTicket
+    ? null
+    : canSend
+    ? { label: '最终发送', icon: Send, onClick: () => onSendReply(activeTicket.id), variant: 'success' as const, disabled: false }
+    : activeReview?.status === 'pending'
+    ? { label: '提交复核', onClick: () => onReview(activeTicket.id, 'approved'), variant: 'warning' as const, disabled: false }
+    : activeActions[0]
+    ? { label: activeActions[0].label, onClick: () => onRunAction(activeTicket.id, activeActions[0].id), variant: 'warning' as const, disabled: false }
+    : { label: '升级处理', onClick: () => onReview(activeTicket.id, 'escalated'), variant: 'warning' as const, disabled: false };
+  const secondaryActions = activeTicket
+    ? [
+        { label: '采用草稿', icon: Bot, onClick: () => onInsertAI(activeTicket.id) },
+        { label: '拒绝建议', onClick: () => onReplyTextChange('') },
+        { label: '重新生成', onClick: () => onDraft(activeTicket.id) },
+        { label: '重新检索', onClick: () => onRetrieve(activeTicket.id) },
+        { label: '保存草稿', icon: Save, onClick: () => onSaveDraft(activeTicket.id) },
+        ...(sendBlocked ? [{ label: '查看详情', onClick: () => setShowRiskDetails(prev => !prev) }] : [{ label: '查看详情', onClick: () => setShowRagEvidence(prev => !prev) }]),
+      ]
+    : [];
+  const hasActiveQueueFilters = Boolean(query.filters.channel || query.filters.workflowStage || query.filters.riskLevel);
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        eyebrow="Agent workspace"
-        title={t.page.service}
-        description={t.page.subtitle_service}
-        aside={
-          <div className="grid grid-cols-3 gap-3 max-[980px]:grid-cols-1">
-            <StatCard label="待处理队列" value={String(result.total)} detail="客服与工单主链路中的当前任务规模。" />
-            <StatCard label="人工复核" value={String(reviewQueue)} detail="命中高风险路径，必须先经过人工判断。" tone="warning" />
-            <StatCard label="发送阻止" value={String(blockedCount)} detail="存在高敏感承诺，AI 不允许直接触达客户。" tone="danger" />
+      <div className="grid grid-cols-[300px_minmax(0,1fr)_280px] gap-4 min-h-[calc(100vh-240px)] max-[1320px]:grid-cols-[280px_minmax(0,1fr)] max-[1180px]:grid-cols-1">
+        <PanelCard
+          title="AI 辅助队列"
+          actions={
+            <div className="relative">
+              <Button
+                variant={hasActiveQueueFilters ? 'warning' : 'secondary'}
+                size="icon"
+                onClick={() => setQueueFilterOpen(prev => !prev)}
+                aria-label="筛选队列"
+                title="筛选队列"
+                className={`${hasActiveQueueFilters ? 'shadow-[0_0_0_2px_rgba(179,92,32,0.12)]' : ''} h-8 w-8 rounded-[12px]`}
+              >
+                <SlidersHorizontal size={14} />
+              </Button>
+              {queueFilterOpen ? (
+                <>
+                  <button
+                    type="button"
+                    aria-label="关闭队列筛选"
+                    className="fixed inset-0 z-10 cursor-default"
+                    onClick={() => setQueueFilterOpen(false)}
+                  />
+                  <div className="absolute right-0 top-[calc(100%+10px)] z-20 w-[280px] rounded-[20px] border border-[var(--color-border)] bg-white/95 p-3 shadow-[0_20px_48px_rgba(15,23,42,0.16)] backdrop-blur">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-light)] mb-2">队列筛选</div>
+                    <div className="space-y-2.5">
+                      <select
+                        className={inputCls}
+                        value={query.filters.channel ?? ''}
+                        onChange={e => {
+                          onQueryChange(prev => ({ ...prev, page: 1, filters: { ...prev.filters, channel: e.target.value || undefined } }));
+                          setQueueFilterOpen(false);
+                        }}
+                      >
+                        <option value="">全部渠道</option>
+                        {['Email', 'Live Chat', 'Ticket'].map(item => <option key={item} value={item}>{displayChannel(item as ServiceTicket['channel'])}</option>)}
+                      </select>
+                      <select
+                        className={inputCls}
+                        value={query.filters.workflowStage ?? ''}
+                        onChange={e => {
+                          onQueryChange(prev => ({ ...prev, page: 1, filters: { ...prev.filters, workflowStage: e.target.value || undefined } }));
+                          setQueueFilterOpen(false);
+                        }}
+                      >
+                        <option value="">全部流程</option>
+                        {['triage', 'retrieve', 'draft', 'review', 'execute', 'follow-up', 'resolved'].map(item => <option key={item} value={item}>{displayWorkflow(item as ServiceTicket['workflowStage'])}</option>)}
+                      </select>
+                      <select
+                        className={inputCls}
+                        value={query.filters.riskLevel ?? ''}
+                        onChange={e => {
+                          onQueryChange(prev => ({ ...prev, page: 1, filters: { ...prev.filters, riskLevel: e.target.value || undefined } }));
+                          setQueueFilterOpen(false);
+                        }}
+                      >
+                        <option value="">全部风险</option>
+                        {['Low', 'Medium', 'High'].map(item => <option key={item} value={item}>{displayRiskLevel(item)}</option>)}
+                      </select>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <div className="text-[11px] text-[var(--color-text-light)]">共 {result.total} 条记录</div>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          onQueryChange(prev => ({ ...prev, page: 1, filters: {} }));
+                          setQueueFilterOpen(false);
+                        }}
+                      >
+                        重置筛选
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          }
+          className="relative overflow-hidden p-0"
+        >
+          <div className="px-5 pb-1 text-xs text-[var(--color-text-secondary)]">
+            共 {result.total} 条记录
           </div>
-        }
-      />
-
-      <PanelCard
-        title="AI 辅助运行规则"
-        description="AI 只负责分类、摘要、检索、草稿和风险提醒。客户消息发送、退款批准、赔偿承诺、投诉关闭都保留给人工。"
-        actions={
-          <div className="flex gap-2 flex-wrap">
-            <Badge variant="green">仅作辅助</Badge>
-            <Badge variant="red">禁止自动发送</Badge>
-            <Badge variant="yellow">风险路径需人工复核</Badge>
-          </div>
-        }
-      >
-        <div className="grid grid-cols-3 gap-3 text-xs max-[980px]:grid-cols-1">
-          <RuleTile title="AI 可以" detail="分类、摘要、检索知识、生成可编辑回复草稿，并提醒潜在风险。" tone="green" />
-          <RuleTile title="AI 不可以" detail="承诺退款、关闭投诉、发送客户消息或生成超出政策边界的结论。" tone="red" />
-          <RuleTile title="人工控制" detail="高风险路径保留在人类手中，所有执行动作都必须能解释并可审计。" tone="yellow" />
-        </div>
-      </PanelCard>
-
-      <FilterBar>
-        <select className={inputCls} value={query.filters.channel ?? ''} onChange={e => onQueryChange(prev => ({ ...prev, page: 1, filters: { ...prev.filters, channel: e.target.value || undefined } }))}>
-          <option value="">全部渠道</option>
-          {['Email', 'Live Chat', 'Ticket'].map(item => <option key={item} value={item}>{displayChannel(item as ServiceTicket['channel'])}</option>)}
-        </select>
-        <select className={inputCls} value={query.filters.workflowStage ?? ''} onChange={e => onQueryChange(prev => ({ ...prev, page: 1, filters: { ...prev.filters, workflowStage: e.target.value || undefined } }))}>
-          <option value="">全部流程</option>
-          {['triage', 'retrieve', 'draft', 'review', 'execute', 'follow-up', 'resolved'].map(item => <option key={item} value={item}>{displayWorkflow(item as ServiceTicket['workflowStage'])}</option>)}
-        </select>
-        <select className={inputCls} value={query.filters.riskLevel ?? ''} onChange={e => onQueryChange(prev => ({ ...prev, page: 1, filters: { ...prev.filters, riskLevel: e.target.value || undefined } }))}>
-          <option value="">全部风险</option>
-          {['Low', 'Medium', 'High'].map(item => <option key={item} value={item}>{displayRiskLevel(item)}</option>)}
-        </select>
-        <Button variant="secondary" size="sm" onClick={() => onQueryChange(prev => ({ ...prev, page: 1, filters: {} }))}>重置筛选</Button>
-      </FilterBar>
-
-      <div className="grid grid-cols-[320px_minmax(0,1fr)_360px] gap-4 min-h-[calc(100vh-240px)] max-[1400px]:grid-cols-1">
-        <PanelCard title="AI 辅助队列" description="按风险、流程和渠道组织当前客服处理任务。" className="overflow-hidden p-0">
           <div className="overflow-y-auto max-h-[calc(100vh-320px)]">
             {result.items.length > 0 ? result.items.map(ticket => {
               const customer = customers.find(item => item.id === ticket.customerId);
               const active = ticket.id === activeTicket?.id;
+              const review = reviews.find(item => item.id === ticket.reviewDecisionId);
+              const statusBadges: Array<{ label: string; variant: 'gray' | 'yellow' | 'red' | 'green' }> = [
+                { label: displayRiskLevel(ticket.riskLevel), variant: ticket.riskLevel === 'High' ? 'red' : ticket.riskLevel === 'Medium' ? 'yellow' : 'green' as const },
+                { label: review?.status === 'pending' ? '待复核' : displayTicketStatus(ticket.status), variant: review?.status === 'pending' ? 'yellow' as const : 'gray' as const },
+                { label: formatSlaStatus(ticket.sla), variant: slaVariant(ticket.sla) },
+              ];
               return (
                 <div
                   key={ticket.id}
-                  className={`px-4 py-3 border-b border-[var(--color-border-light)] cursor-pointer transition-all ${active ? 'bg-[var(--color-primary-bg)] shadow-[inset_3px_0_0_var(--color-primary)]' : 'hover:bg-[rgba(255,255,255,0.42)]'}`}
+                  className={`px-4 py-3 border-b border-[var(--color-border-light)] cursor-pointer transition-all ${active ? 'bg-[rgba(179,92,32,0.08)] shadow-[inset_2px_0_0_var(--color-primary)]' : 'hover:bg-[rgba(255,255,255,0.42)]'}`}
                   onClick={() => onSelectTicket(ticket.id)}
                 >
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div>
-                      <div className="text-[13px] font-semibold">{ticket.id}</div>
-                      <div className="text-xs text-[var(--color-text-secondary)]">{customer?.name}</div>
-                    </div>
-                    <Badge variant={stageVariant[ticket.workflowStage]}>{displayWorkflow(ticket.workflowStage)}</Badge>
+                  <div className="mb-1.5">
+                    <div className="text-[13px] font-semibold">{ticket.id}</div>
+                    <div className="text-xs text-[var(--color-text-secondary)] mt-0.5">{customer?.name}</div>
                   </div>
-                  <div className="text-xs text-[var(--color-text)] mb-2">{ticket.summary}</div>
+                  <div className="text-xs text-[var(--color-text)] mb-2 line-clamp-2">{summarizeQueue(ticket.summary)}</div>
                   <div className="flex gap-1 flex-wrap">
-                    <Badge variant={ticket.riskLevel === 'High' ? 'red' : ticket.riskLevel === 'Medium' ? 'yellow' : 'green'}>{displayRiskLevel(ticket.riskLevel)}</Badge>
-                    <Badge variant="blue">{ticket.intent}</Badge>
-                    <Badge variant="gray">{displayChannel(ticket.channel)}</Badge>
+                    {statusBadges.map(item => (
+                      <Badge key={item.label} variant={item.variant}>{item.label}</Badge>
+                    ))}
                   </div>
                 </div>
               );
@@ -166,134 +266,179 @@ export function CustomerService({
           <Pagination page={result.page} totalPages={result.totalPages} total={result.total} onPageChange={page => onQueryChange(prev => ({ ...prev, page }))} />
         </PanelCard>
 
-        <PanelCard title={activeTicket ? `${activeTicket.id} · ${displayIssueType(activeTicket.issueType)}` : '工单工作区'} description={activeTicket?.aiSummary ?? '选择左侧队列中的工单后查看 AI 草稿、会话上下文和执行动作。'} className="flex flex-col min-h-0 p-0 overflow-hidden">
+        <PanelCard title={activeTicket ? undefined : '工单工作区'} className="flex flex-col min-h-0 p-0 overflow-hidden">
           {activeTicket ? (
             <>
-              <div className="px-4 py-4 border-b border-[var(--color-border)] space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <Badge variant={stageVariant[activeTicket.workflowStage]}>{displayWorkflow(activeTicket.workflowStage)}</Badge>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 text-xs max-[900px]:grid-cols-1">
-                  <SignalCard label="意图" value={activeTicket.intent} />
-                  <SignalCard label="策略判定" value={activeTicket.policyDecision} />
-                  <SignalCard label="所需动作" value={activeTicket.requiredAction} />
-                </div>
-
-                <div className="flex gap-2 flex-wrap">
-                  <Button variant="secondary" size="sm" onClick={() => onRetrieve(activeTicket.id)}>重新执行检索</Button>
-                  <Button variant="secondary" size="sm" onClick={() => onDraft(activeTicket.id)}>生成草稿</Button>
-                  <Button variant="secondary" size="sm" onClick={() => onReview(activeTicket.id, 'approved')}>通过复核</Button>
-                  <Button variant="secondary" size="sm" onClick={() => onReview(activeTicket.id, 'escalated')}>升级处理</Button>
-                  {activeActions[0] ? (
-                    <Button size="sm" onClick={() => onRunAction(activeTicket.id, activeActions[0].id)}>执行内部动作</Button>
-                  ) : null}
-                </div>
+              <div className="px-4 py-4 border-b border-[var(--color-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(255,255,255,0.48))]">
+                <div className="text-[18px] font-semibold tracking-[-0.02em]">{activeTicket.id} · {displayIssueType(activeTicket.issueType)}</div>
+                <div className="text-sm text-[var(--color-text-secondary)] mt-1">{statusSummary}</div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                <div className="rounded-[16px] border border-[var(--color-border-light)] p-4 bg-[var(--color-bg)]">
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">对话与摘要</div>
-                    <Badge variant={activeTicket.manualReview ? 'yellow' : 'green'}>{activeTicket.manualReview ? '需要人工复核' : '标准路径'}</Badge>
+                <section className="rounded-[18px] border border-[var(--color-border-light)] p-4 bg-[rgba(255,255,255,0.68)]">
+                  <div className="text-sm font-semibold">当前结论与下一步</div>
+                  <div className="mt-3 rounded-[14px] border border-[var(--color-border-light)] bg-[var(--color-bg)] p-3 text-sm">
+                    <div><span className="font-medium">当前结论：</span>{conclusionSummary}</div>
+                    <div className="mt-2"><span className="font-medium">当前阻塞：</span>{blockingReason}</div>
+                    <div className="mt-2"><span className="font-medium">推荐下一步：</span>{recommendedAction}</div>
                   </div>
-                  {activeMessages.length > 0 ? (
-                    <div className="space-y-2">
-                      {activeMessages.map((message, index) => (
-                        <div key={`${message.timestamp}-${index}`} className="border border-[var(--color-border-light)] rounded-[12px] px-3 py-2 bg-white">
-                          <div className="text-[11px] text-[var(--color-text-light)] mb-1">{message.sender === 'customer' ? '客户' : message.sender === 'system' ? '系统' : '客服'} · {message.timestamp}</div>
-                          <div className="text-xs whitespace-pre-wrap">{message.content}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState title="暂无会话记录" description="当前工单还没有沉淀出可供复核的消息往来，先执行检索或等待渠道同步。" compact />
-                  )}
-                </div>
+                </section>
 
-                {activeDraft ? (
-                  <div className="rounded-[16px] border border-[var(--color-border)] p-4">
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                    <div className="text-sm font-semibold">AI 回复草稿</div>
-                    <div className="flex gap-2">
+                {needsChecklist ? (
+                  <section className="rounded-[18px] border border-[var(--color-border-light)] p-4 bg-[rgba(255,255,255,0.68)]">
+                  <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                    <div>
+                      <div className="text-sm font-semibold">人工复核 Checklist</div>
+                      <div className="text-xs text-[var(--color-text-secondary)] mt-1">高风险工单按复核步骤推进，一眼看出卡在哪一步。</div>
+                    </div>
+                    <Badge variant="yellow">需要复核</Badge>
+                  </div>
+                  <div className="grid gap-2">
+                    {checklist.map(item => (
+                      <div key={item.label} className="flex items-center justify-between gap-3 rounded-[14px] border border-[var(--color-border-light)] bg-white px-3 py-2.5">
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium">{item.label}</div>
+                          <div className="text-xs text-[var(--color-text-secondary)] mt-1">{item.detail}</div>
+                        </div>
+                        <Badge variant={item.status === 'Completed' ? 'green' : item.status === 'Blocked' ? 'red' : 'yellow'}>
+                          {item.status}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                  </section>
+                ) : null}
+
+                <section className="rounded-[18px] border border-[var(--color-border)] p-4 bg-white">
+                  {activeDraft ? (
+                    <>
+                    <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                      <div>
+                        <div className="text-sm font-semibold">AI Draft Reply</div>
+                        <div className="text-xs text-[var(--color-text-secondary)] mt-1">{sendDecision.detail}</div>
+                      </div>
+                      <div className="flex gap-2">
                         <Badge variant={activeDraft.riskLevel === 'High' ? 'red' : activeDraft.riskLevel === 'Medium' ? 'yellow' : 'green'}>{displayRiskLevel(activeDraft.riskLevel)}</Badge>
-                        <Badge variant="blue">置信度 {activeDraft.confidence}%</Badge>
+                        <Badge variant={activeTicket.manualReview ? 'yellow' : 'gray'}>{activeTicket.manualReview ? '需要复核' : '无需复核'}</Badge>
                       </div>
                     </div>
-                    <div className="text-xs whitespace-pre-wrap mb-3">{activeDraft.content}</div>
-                    <div className="flex gap-2 flex-wrap mb-3">
-                      {activeDraft.citations.map(citation => (
-                        <Badge key={citation.chunkId} variant="blue">{citation.source} {citation.match}</Badge>
+                    <div className="grid grid-cols-4 gap-2 mb-3 max-[980px]:grid-cols-2 max-[640px]:grid-cols-1">
+                      <SignalCard label="Confidence" value={`${activeDraft.confidence}%`} />
+                      <SignalCard label="Citation Coverage" value={`${highestCitation(activeDraft)}%`} />
+                      <SignalCard label="Risk Level" value={displayRiskLevel(activeDraft.riskLevel)} />
+                      <SignalCard label="Manual Review" value={activeTicket.manualReview ? 'Required' : 'Not Required'} />
+                    </div>
+                    <textarea
+                      className="w-full h-44 border border-[var(--color-border)] rounded-[16px] px-3 py-3 text-sm bg-white outline-none resize-none transition-all duration-200 focus:border-[rgba(179,92,32,0.34)] focus:shadow-[0_0_0_4px_rgba(179,92,32,0.10)]"
+                      value={replyText}
+                      onChange={e => onReplyTextChange(e.target.value)}
+                      placeholder={activeDraft.content}
+                    />
+                    <div className="mt-3 rounded-[14px] border border-[var(--color-border-light)] bg-[var(--color-bg)] px-3 py-2.5 text-sm">
+                      <span className="font-medium">发送判定：</span>
+                      <span className={canSend ? 'text-emerald-700' : 'text-rose-700'}>{sendDecision.label}</span>
+                      <span className="text-[var(--color-text-secondary)]"> · {canSend ? '可进入最终人工发送。' : blockingReason}</span>
+                    </div>
+                    <div className="mt-3 flex gap-2 flex-wrap">
+                      {primaryAction ? (
+                        <Button variant={primaryAction.variant} size="sm" disabled={primaryAction.disabled} onClick={primaryAction.onClick}>
+                          {'icon' in primaryAction && primaryAction.icon ? <primaryAction.icon size={14} /> : null}
+                          {primaryAction.label}
+                        </Button>
+                      ) : null}
+                      {secondaryActions.map(item => (
+                        <Button key={item.label} size="sm" variant="secondary" onClick={item.onClick}>
+                          {'icon' in item && item.icon ? <item.icon size={14} /> : null}
+                          {item.label}
+                        </Button>
                       ))}
                     </div>
-                    <div className="rounded-[12px] bg-[var(--color-bg)] border border-[var(--color-border-light)] p-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-secondary)] mb-2">草稿依据</div>
-                      <ul className="list-disc pl-4 text-[11px] text-[var(--color-text-secondary)] space-y-1">
-                        {activeDraft.explanation.map(line => <li key={line}>{line}</li>)}
-                      </ul>
+                    <div className="mt-2 flex gap-2 flex-wrap">
+                      <Button size="sm" variant="warning" onClick={() => onReview(activeTicket.id, 'escalated')}><AlertTriangle size={14} /> 强制升级</Button>
+                      <Button size="sm" variant="secondary" onClick={() => onCloseTicket(activeTicket.id)}><CheckSquare size={14} /> 关闭工单</Button>
                     </div>
-                    {activeDraft.sourceTrace ? (
-                      <div className="rounded-[12px] bg-[var(--color-primary-bg)] border border-[var(--color-border-light)] p-3 mt-3">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-secondary)] mb-2">运行来源</div>
-                        <div className="grid grid-cols-2 gap-2 text-[11px] max-[900px]:grid-cols-1">
-                          <SignalCard label="当前场景" value={displayIssueType(activeTicket.issueType)} />
-                          <SignalCard label="场景配置" value={`${activeDraft.sourceTrace.scenarioConfigName} ${activeDraft.sourceTrace.scenarioConfigVersion}`} />
-                          <SignalCard label="草稿模型" value={activeDraft.sourceTrace.draftingModel} />
-                          <SignalCard label="检索摘要" value={activeDraft.sourceTrace.retrievalSummary} />
-                          <SignalCard label="必须引用" value={activeDraft.sourceTrace.citationRequired ? '是' : '否'} />
-                          <SignalCard label="护栏结论" value={activeDraft.sourceTrace.guardrailResult} />
+
+                    <div className="mt-4 space-y-3">
+                      <CollapsibleSummary
+                        title="风险详情"
+                        summary={`${displayRiskLevel(activeTicket.riskLevel)}，命中 ${riskRuleName}。`}
+                        open={showRiskDetails}
+                        onToggle={() => setShowRiskDetails(prev => !prev)}
+                      >
+                        <div className="space-y-2 text-xs">
+                          <div><strong>白话解释：</strong>{riskReason}</div>
+                          <div><strong>策略判定：</strong>{activeTicket.policyDecision}</div>
+                          <div><strong>当前要求：</strong>{activeTicket.requiredAction}</div>
                         </div>
-                        <div className="mt-3">
-                          <div className="text-[11px] text-[var(--color-text-secondary)] mb-1">节点模型</div>
-                          <div className="flex gap-1 flex-wrap">
-                            {activeDraft.sourceTrace.nodeModels.map(item => <Badge key={item} variant="blue">{item}</Badge>)}
+                      </CollapsibleSummary>
+
+                      <CollapsibleSummary
+                        title="RAG 证据"
+                        summary={`RAG 证据：${ragEvidenceSummary}`}
+                        open={showRagEvidence}
+                        onToggle={() => setShowRagEvidence(prev => !prev)}
+                      >
+                        <div className="space-y-2">
+                          {activeDraft.citations.map(citation => (
+                            <div key={citation.chunkId} className="rounded-[12px] border border-[var(--color-border-light)] p-3 text-xs bg-[var(--color-bg)]">
+                              <div><strong>Source：</strong>{citation.source}</div>
+                              <div><strong>Match Score：</strong>{citation.match}</div>
+                              <div><strong>Evidence Type：</strong>政策文档</div>
+                              <div><strong>Why Used：</strong>用于支撑{displayIssueType(activeTicket.issueType)}的回复判断。</div>
+                              <div><strong>Chunk Text：</strong>{activeDraft.explanation[0] ?? '当前引用用于支撑策略与措辞边界。'}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </CollapsibleSummary>
+
+                      <CollapsibleSummary
+                        title="运行日志"
+                        summary={activeDraft.sourceTrace ? `草稿由 ${activeDraft.sourceTrace.draftingModel} 生成，检索摘要为“${activeDraft.sourceTrace.retrievalSummary}”。` : '暂无运行日志'}
+                        open={showSourceTrace}
+                        onToggle={() => setShowSourceTrace(prev => !prev)}
+                      >
+                        {activeDraft.sourceTrace ? (
+                          <div className="grid grid-cols-2 gap-2 text-xs max-[900px]:grid-cols-1">
+                            <SignalCard label="场景配置" value={`${activeDraft.sourceTrace.scenarioConfigName} ${activeDraft.sourceTrace.scenarioConfigVersion}`} />
+                            <SignalCard label="检索摘要" value={activeDraft.sourceTrace.retrievalSummary} />
+                            <SignalCard label="草稿模型" value={activeDraft.sourceTrace.draftingModel} />
+                            <SignalCard label="护栏结论" value={activeDraft.sourceTrace.guardrailResult} />
                           </div>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <EmptyState
-                    title="尚未生成回复草稿"
-                    description="先运行检索和草稿生成，再决定是否插入 AI 建议或进入人工复核。"
-                    compact
-                    action={<Button size="sm" variant="secondary" onClick={() => onDraft(activeTicket.id)}>生成草稿</Button>}
-                  />
-                )}
+                        ) : (
+                          <div className="text-xs text-[var(--color-text-secondary)]">暂无运行来源信息</div>
+                        )}
+                      </CollapsibleSummary>
 
-                <div className="rounded-[16px] border border-[var(--color-danger)] bg-[var(--color-danger-bg)] p-4">
-                  <div className="text-sm font-semibold text-[var(--color-danger)] mb-1">人工复核门</div>
-                  <div className="text-xs text-[var(--color-text-secondary)]">
-                    AI 草稿可以编辑，但不能直接发送。退款、投诉、赔偿和政策敏感路径必须保持人工控制。
-                  </div>
-                  {activeTicket?.sendGuardrailResult ? (
-                    <div className="mt-2 text-xs text-[var(--color-text-secondary)]">
-                      当前发送状态：{activeTicket.sendGuardrailResult.reason}
+                      <CollapsibleSummary
+                        title="对话摘要"
+                        summary={latestCustomerMessage ? `客户最新消息：${latestCustomerMessage.content}` : '暂无对话摘要'}
+                        open={showConversation}
+                        onToggle={() => setShowConversation(prev => !prev)}
+                      >
+                        {activeMessages.length > 0 ? (
+                          <div className="space-y-2">
+                            {visibleMessages.map((message, index) => (
+                              <div key={`${message.timestamp}-${index}`} className="border border-[var(--color-border-light)] rounded-[12px] px-3 py-2 bg-[var(--color-bg)] text-xs">
+                                <div className="text-[11px] text-[var(--color-text-light)] mb-1">{message.sender === 'customer' ? '客户' : message.sender === 'system' ? '系统' : '客服'} · {message.timestamp}</div>
+                                <div className="whitespace-pre-wrap">{message.content}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-[var(--color-text-secondary)]">暂无会话记录</div>
+                        )}
+                      </CollapsibleSummary>
                     </div>
-                  ) : null}
-                </div>
-
-                <div>
-                  <div className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-[0.18em] mb-2">可编辑回复区</div>
-                  <textarea
-                    className="w-full h-40 border border-[var(--color-border)] rounded-[var(--radius-sm)] px-3 py-2 text-xs bg-white outline-none resize-none transition-all duration-200 focus:border-[rgba(179,92,32,0.34)] focus:shadow-[0_0_0_4px_rgba(179,92,32,0.10)]"
-                    value={replyText}
-                    onChange={e => onReplyTextChange(e.target.value)}
-                    placeholder={t.common.typeReply}
-                  />
-                  <div className="mt-2 flex gap-2 flex-wrap">
-                    <Button size="sm" onClick={() => onInsertAI(activeTicket.id)}><Bot size={14} /> 插入 AI 建议</Button>
-                    <Button size="sm" variant="success" disabled={sendBlocked} onClick={() => onSendReply(activeTicket.id)}><Send size={14} /> {sendBlocked ? '发送前需先复核' : '发送回复'}</Button>
-                    <Button size="sm" variant="secondary" onClick={() => onSaveDraft(activeTicket.id)}><Save size={14} /> 保存草稿</Button>
-                    <Button size="sm" variant="warning" onClick={() => onReview(activeTicket.id, 'escalated')}><AlertTriangle size={14} /> 升级工单</Button>
-                    <Button size="sm" variant="secondary" onClick={() => onCloseTicket(activeTicket.id)}><CheckSquare size={14} /> 关闭工单</Button>
-                  </div>
-                  {sendBlocked ? (
-                    <div className="mt-2 text-[11px] leading-5 text-[var(--color-danger)]">
-                      当前草稿已命中发送护栏，必须先通过人工复核或升级处理，不能直接发送给客户。
-                    </div>
-                  ) : null}
-                </div>
+                    </>
+                  ) : (
+                    <EmptyState
+                      title="尚未生成回复草稿"
+                      description="先生成 AI 草稿，再决定是否采用、复核或最终发送。"
+                      compact
+                      action={<Button size="sm" variant="secondary" onClick={() => onDraft(activeTicket.id)}>重新生成</Button>}
+                    />
+                  )}
+                </section>
               </div>
             </>
           ) : (
@@ -301,90 +446,59 @@ export function CustomerService({
           )}
         </PanelCard>
 
-        <DetailPanel title={activeCustomer ? `${activeCustomer.name} 的客户视图` : '客户 360 视图'} description={activeCustomer ? `${activeCustomer.country} · ${displayLanguage(activeCustomer.preferredLanguage)} · 负责人 ${activeCustomer.owner}` : '展示客户标签、订单和复核执行信息。'} className="overflow-y-auto p-4">
+        <DetailPanel title="客户 360 视图" className="overflow-y-auto p-4 max-[1320px]:col-span-2 max-[1180px]:col-span-1">
           {activeTicket && activeCustomer ? (
             <div className="space-y-4">
               <section>
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <div className="text-sm font-semibold">客户 360 视图</div>
-                  <Badge variant="blue">{activeCustomer.segment}</Badge>
+                <div className="text-sm font-semibold mb-2">AI 客户概览</div>
+                <div className="text-xs text-[var(--color-text-secondary)] leading-6">{customerOverview}</div>
+                <div className="flex gap-1 flex-wrap mt-3">
+                  {[activeCustomer.segment, activeTicket.riskLevel === 'High' ? '高风险' : null, activeReview?.status === 'pending' ? '待复核' : null].filter(Boolean).slice(0, 3).map(item => (
+                    <Badge key={String(item)} variant={item === '高风险' ? 'red' : item === '待复核' ? 'yellow' : 'blue'}>{item}</Badge>
+                  ))}
                 </div>
-                <div className="text-[13px] font-semibold">{activeCustomer.name}</div>
-                <div className="text-xs text-[var(--color-text-secondary)] mt-1">{activeCustomer.country} · {displayLanguage(activeCustomer.preferredLanguage)} · 负责人 {activeCustomer.owner}</div>
+              </section>
+
+              <section>
+                <div className="text-sm font-semibold mb-2">客户关键指标</div>
                 <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
                   <SignalCard label="客户终身价值" value={`$${activeCustomer.lifetimeValue}`} />
                   <SignalCard label="订单数" value={String(activeCustomer.totalOrders)} />
                   <SignalCard label="投诉历史" value={String(activeCustomer.complaintHistory)} />
                   <SignalCard label="履约达成率" value={activeCustomer.promiseFulfillment} />
                 </div>
-                <div className="flex gap-1 flex-wrap mt-3">
-                  {activeCustomer.tags.map(tag => <Badge key={tag} variant="blue">{tag}</Badge>)}
-                  {activeCustomer.riskFlags.map(flag => <Badge key={flag} variant="red">{flag}</Badge>)}
-                </div>
               </section>
 
               {activeOrder ? (
                 <section>
-                <div className="text-sm font-semibold mb-2">订单与物流上下文</div>
+                <div className="text-sm font-semibold mb-2">当前订单上下文</div>
                   <div className="rounded-[14px] border border-[var(--color-border-light)] p-3 text-xs space-y-1.5">
                     <div><strong>订单：</strong> {activeOrder.id}</div>
-                    <div><strong>履约：</strong> {displayFulfillmentStatus(activeOrder.fulfillmentStatus)}</div>
                     <div><strong>支付：</strong> {displayPaymentStatus(activeOrder.paymentStatus)}</div>
-                    <div><strong>物流商：</strong> {activeOrder.carrier || '-'}</div>
-                    <div><strong>物流单号：</strong> {activeOrder.tracking || '-'}</div>
-                    <div><strong>最新动态：</strong> {activeOrder.latestEvent}</div>
+                    <div><strong>履约：</strong> {displayFulfillmentStatus(activeOrder.fulfillmentStatus)}</div>
+                    <div><strong>物流：</strong> {activeOrder.latestEvent}</div>
                     <div><strong>风险：</strong> {activeOrder.riskAlert || '无'}</div>
                   </div>
                 </section>
               ) : null}
 
               <section>
-                <div className="text-sm font-semibold mb-2">复核与执行</div>
+                <div className="text-sm font-semibold mb-2">复核与跟进状态</div>
                 <div className="space-y-2">
                   <div className="rounded-[14px] border border-[var(--color-border-light)] p-3 text-xs bg-[var(--color-bg)]">
+                    <div className="mb-1"><strong>复核状态：</strong> {activeReview ? displayReviewStatus(activeReview.status) : '无'}</div>
+                    <div className="mb-1"><strong>负责人：</strong> {activeReview?.reviewer ?? activeCustomer.owner}</div>
                     <div className="mb-1"><strong>客户承诺：</strong> {activeTicket.executionOutcome.customerPromise}</div>
-                    <div className="mb-1"><strong>当前状态：</strong> {activeTicket.executionOutcome.finalState}</div>
-                    <div><strong>下次跟进：</strong> {activeTicket.executionOutcome.followUpAt || '待定'}</div>
+                    <div><strong>下一次跟进：</strong> {activeTicket.executionOutcome.followUpAt || '待定'}</div>
                   </div>
-                  {activeReview ? (
-                    <div className="rounded-[14px] border border-[var(--color-border-light)] p-3 text-xs">
-                      <div className="mb-1"><strong>复核状态：</strong> {displayReviewStatus(activeReview.status)}</div>
-                      <div className="mb-1"><strong>复核人：</strong> {activeReview.reviewer}</div>
-                      <div><strong>原因：</strong> {activeReview.reason}</div>
-                    </div>
-                  ) : null}
                 </div>
               </section>
-
-              {activeActions.length > 0 ? (
-                <section className="space-y-2">
-                  <div className="text-sm font-semibold">内部动作</div>
-                  {activeActions.map(action => (
-                    <div key={action.id} className="border border-[var(--color-border-light)] rounded-[14px] p-3">
-                      <div className="flex items-center justify-between gap-3 mb-1">
-                        <div className="text-xs font-medium">{action.label}</div>
-                        <Badge variant={action.status === 'completed' ? 'green' : action.status === 'blocked' ? 'red' : 'yellow'}>{displayActionStatus(action.status)}</Badge>
-                      </div>
-                      <div className="text-[11px] text-[var(--color-text-secondary)]">{action.result}</div>
-                    </div>
-                  ))}
-                </section>
-              ) : null}
             </div>
           ) : (
             <EmptyState title="暂无客户上下文" description={t.common.noData} compact />
           )}
         </DetailPanel>
       </div>
-    </div>
-  );
-}
-
-function RuleTile({ title, detail, tone }: { title: string; detail: string; tone: 'green' | 'red' | 'yellow' }) {
-  return (
-    <div className="rounded-[18px] border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.52)] p-4">
-      <div className={`text-[11px] uppercase tracking-[0.18em] ${tone === 'green' ? 'text-[var(--color-success)]' : tone === 'red' ? 'text-[var(--color-danger)]' : 'text-[var(--color-warning)]'}`}>{title}</div>
-      <div className="text-[13px] leading-6 text-[var(--color-text-secondary)] mt-2">{detail}</div>
     </div>
   );
 }
@@ -396,4 +510,115 @@ function SignalCard({ label, value }: { label: string; value: string }) {
       <div className="text-xs font-medium mt-1">{value}</div>
     </div>
   );
+}
+
+function CollapsibleSummary({
+  title,
+  summary,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  summary: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-[14px] border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.55)] p-3">
+      <button type="button" className="w-full flex items-start justify-between gap-3 text-left" onClick={onToggle}>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">{title}</div>
+          <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{summary}</div>
+        </div>
+        {open ? <ChevronUp size={16} className="text-[var(--color-text-secondary)] shrink-0" /> : <ChevronDown size={16} className="text-[var(--color-text-secondary)] shrink-0" />}
+      </button>
+      {open ? <div className="mt-3">{children}</div> : null}
+    </div>
+  );
+}
+
+function summarizeQueue(summary: string) {
+  return summary.replace('客户', '').replace('。', '').trim();
+}
+
+function highestCitation(draft: ReplyDraft) {
+  return draft.citations.reduce((max, item) => {
+    const parsed = Number(item.match.replace('%', ''));
+    return Number.isFinite(parsed) ? Math.max(max, parsed) : max;
+  }, 0);
+}
+
+function formatSlaStatus(sla: string) {
+  const diffMs = new Date(sla).getTime() - Date.now();
+  const diffHours = Math.round(diffMs / (1000 * 60 * 60));
+
+  if (diffHours <= 0) return '已超时';
+  if (diffHours < 24) return `${diffHours}h left`;
+
+  return `${Math.ceil(diffHours / 24)}d left`;
+}
+
+function slaVariant(sla: string): 'gray' | 'yellow' | 'red' {
+  const diffMs = new Date(sla).getTime() - Date.now();
+  const diffHours = Math.round(diffMs / (1000 * 60 * 60));
+
+  if (diffHours <= 0) return 'red';
+  if (diffHours <= 24) return 'yellow';
+
+  return 'gray';
+}
+
+function buildReviewChecklist({
+  ticket,
+  customer,
+  order,
+  draft,
+  review,
+  sendBlocked,
+  riskReason,
+}: {
+  ticket: ServiceTicket | null;
+  customer: CustomerProfile | null;
+  order: Order | null;
+  draft: ReplyDraft | null;
+  review: ReviewDecision | null;
+  sendBlocked: boolean;
+  riskReason: string;
+}) {
+  const evidenceBlocked = /补充证据|缺少证据/.test(ticket?.policyDecision ?? riskReason);
+
+  return [
+    {
+      label: '核对客户身份',
+      status: customer ? 'Completed' : 'Blocked',
+      detail: customer ? `${customer.name} / ${customer.country} / ${displayLanguage(customer.preferredLanguage)}` : '缺少客户身份信息',
+    },
+    {
+      label: '核对订单状态',
+      status: order ? 'Completed' : 'Blocked',
+      detail: order ? `${displayPaymentStatus(order.paymentStatus)} · ${displayFulfillmentStatus(order.fulfillmentStatus)}` : '未关联订单上下文',
+    },
+    {
+      label: '核对退款 / 投诉 / 赔偿政策',
+      status: draft?.sourceTrace ? 'Completed' : 'Pending',
+      detail: draft?.sourceTrace ? `${draft.sourceTrace.scenarioConfigName} ${draft.sourceTrace.scenarioConfigVersion}` : '尚未确认对应政策',
+    },
+    {
+      label: '检查客户证据',
+      status: evidenceBlocked ? 'Blocked' : draft?.citations.length ? 'Completed' : 'Pending',
+      detail: evidenceBlocked ? '当前仍提示需补充证据' : draft?.citations.length ? `已命中 ${draft.citations.length} 条证据` : '待补充客户证据或知识引用',
+    },
+    {
+      label: '主管审批',
+      status: review?.status === 'approved' ? 'Completed' : sendBlocked ? 'Blocked' : 'Pending',
+      detail: review?.status === 'approved' ? '人工复核已通过' : sendBlocked ? '发送前必须先通过复核' : '当前无需主管审批',
+    },
+    {
+      label: '准备最终回复',
+      status: !sendBlocked && draft?.content ? 'Completed' : 'Pending',
+      detail: !sendBlocked && draft?.content ? '已满足发送前条件' : '完成以上步骤后才能发送最终回复',
+    },
+  ] as const;
 }

@@ -1,33 +1,28 @@
 import type { AnalyticsData } from '../types';
-import { PageHeader, PanelCard, StatCard } from '../components/common/PageChrome';
-import { useT } from '../i18n';
+import { PanelCard, StatCard, SummaryHeader } from '../components/common/PageChrome';
 
 interface AnalyticsProps {
   analytics: AnalyticsData;
 }
 
 export function Analytics({ analytics }: AnalyticsProps) {
-  const { t } = useT();
-
   return (
     <div className="space-y-4">
-      <PageHeader
-        eyebrow="Operational insights"
-        title={t.page.insights}
-        description={t.page.subtitle_insights}
+      <SummaryHeader
+        aside={
+          <div className="grid grid-cols-4 gap-3.5 max-[1400px]:grid-cols-2">
+            {analytics.metrics.map(metric => (
+              <StatCard
+                key={metric.label}
+                label={metric.label}
+                value={metric.value}
+                detail={`${metric.trend} ${metric.subtitle}`}
+                tone={metric.direction === 'up' ? 'success' : 'warning'}
+              />
+            ))}
+          </div>
+        }
       />
-
-      <div className="grid grid-cols-4 gap-3.5 max-[1400px]:grid-cols-2">
-        {analytics.metrics.map(metric => (
-          <StatCard
-            key={metric.label}
-            label={metric.label}
-            value={metric.value}
-            detail={`${metric.trend} ${metric.subtitle}`}
-            tone={metric.direction === 'up' ? 'success' : 'warning'}
-          />
-        ))}
-      </div>
 
       <div className="grid grid-cols-2 gap-4 max-[1200px]:grid-cols-1">
         <MetricList title="工单效率" items={analytics.ticketVolume.labels.map((label, index) => ({ label, value: String(analytics.ticketVolume.values[index]), color: 'var(--color-primary)' }))} />

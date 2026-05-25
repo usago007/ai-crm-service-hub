@@ -5,12 +5,11 @@ interface ToggleProps {
   description?: string;
 }
 
-export function Toggle({ on, onClick, label, description }: ToggleProps) {
+export function Toggle({ on, onClick, label }: ToggleProps) {
   return (
     <div className="flex items-center justify-between py-3 border-b border-[var(--color-border-light)] text-[13px] last:border-b-0 gap-3">
       <div className="min-w-0">
         {label ? <div className="font-medium text-[var(--color-text)]">{label}</div> : null}
-        {description ? <div className="text-xs text-[var(--color-text-secondary)] mt-1 leading-5">{description}</div> : null}
       </div>
       <button
         type="button"

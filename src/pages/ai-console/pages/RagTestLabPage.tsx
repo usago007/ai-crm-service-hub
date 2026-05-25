@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '../../../components/common/Badge';
 import { Button } from '../../../components/common/Button';
 import { EmptyState } from '../../../components/common/PageChrome';
@@ -6,19 +6,38 @@ import type { AIConsoleProps } from '../types';
 import { languageOptions, scenarioOptions } from '../types';
 import { Field, InfoCard, PageHeader, PromptBlock, PromptListBlock, SectionCard } from '../shared';
 import { inputCls } from '../sharedUtils';
-import { displayLanguage, displayRiskLevel, displayScenario } from '../../../utils/display';
+import { displayIssueType, displayLanguage, displayRiskLevel, displayScenario } from '../../../utils/display';
 
-type Props = Pick<AIConsoleProps, 'customers' | 'orders' | 'ragTestRuns' | 'effectiveScenarioPolicies' | 'effectiveNodePolicies' | 'onRunRagTest'>;
+type Props = Pick<AIConsoleProps, 'businessCase' | 'customers' | 'orders' | 'ragTestRuns' | 'effectiveScenarioPolicies' | 'effectiveNodePolicies' | 'onRunRagTest'>;
 
-export function RagTestLabPage({ customers, orders, ragTestRuns, effectiveScenarioPolicies, effectiveNodePolicies, onRunRagTest }: Props) {
+export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, effectiveScenarioPolicies, effectiveNodePolicies, onRunRagTest }: Props) {
+  const initialCustomer = businessCase.customer ?? customers[0] ?? null;
+  const initialTicket = businessCase.ticket ?? null;
+  const initialOrder = businessCase.order ?? orders[0] ?? null;
   const [testForm, setTestForm] = useState({
-    customerQuestion: 'Where is my order? Tracking has not updated.',
-    customerId: customers[0]?.id ?? '',
-    scenario: 'Shipping',
-    language: customers[0]?.preferredLanguage ?? 'EN',
-    relatedOrderId: orders[0]?.id ?? '',
+    customerQuestion: initialTicket?.summary ?? 'Where is my order? Tracking has not updated.',
+    customerId: initialCustomer?.id ?? '',
+    scenario: businessCase.ragRun?.scenario ?? 'Shipping',
+    language: initialCustomer?.preferredLanguage ?? 'EN',
+    relatedOrderId: initialOrder?.id ?? '',
   });
   const [selectedRunId, setSelectedRunId] = useState<string | null>(ragTestRuns[0]?.id ?? null);
+
+  useEffect(() => {
+    const ticket = businessCase.ticket;
+    const customer = businessCase.customer;
+    if (!ticket || !customer) return;
+    queueMicrotask(() => {
+      setTestForm({
+        customerQuestion: businessCase.ragRun?.originalQuery ?? ticket.summary,
+        customerId: customer.id,
+        scenario: businessCase.ragRun?.scenario ?? 'Shipping',
+        language: customer.preferredLanguage,
+        relatedOrderId: businessCase.order?.id ?? '',
+      });
+      setSelectedRunId(businessCase.ragRun?.id ?? ticket.retrievalRunId ?? null);
+    });
+  }, [businessCase.customer, businessCase.order?.id, businessCase.ragRun, businessCase.ticket]);
 
   const customerOrders = useMemo(() => orders.filter(item => item.customerId === testForm.customerId), [orders, testForm.customerId]);
   const runHistory = useMemo(
@@ -42,9 +61,20 @@ export function RagTestLabPage({ customers, orders, ragTestRuns, effectiveScenar
 
   return (
     <div className="space-y-4">
-      <PageHeader title="RAG 调试台" description="只看当前输入与本次运行结果，历史运行单独列出，避免把全局最新记录误当成本次结论。" />
+      <PageHeader title="RAG 调试台" />
 
-      <SectionCard title="Step 1: 输入">
+      {businessCase.ticket && businessCase.customer ? (
+        <SectionCard title="当前案例输入上下文">
+          <div className="grid grid-cols-4 gap-3 max-[1000px]:grid-cols-2 text-xs">
+            <InfoCard label="工单" value={`${businessCase.ticket.id} / ${displayIssueType(businessCase.ticket.issueType)}`} />
+            <InfoCard label="客户" value={`${businessCase.customer.name} / ${businessCase.customer.country}`} />
+            <InfoCard label="订单" value={businessCase.order?.id ?? '未关联订单'} />
+            <InfoCard label="历史检索" value={businessCase.ragRun?.createdAt ?? '尚未沉淀'} />
+          </div>
+        </SectionCard>
+      ) : null}
+
+      <SectionCard title="输入">
         <div className="grid grid-cols-2 gap-3 max-[1000px]:grid-cols-1">
           <Field label="客户问题">
             <textarea className={`${inputCls} h-24 py-2 resize-none`} value={testForm.customerQuestion} onChange={e => setTestForm(prev => ({ ...prev, customerQuestion: e.target.value }))} />
@@ -110,7 +140,7 @@ export function RagTestLabPage({ customers, orders, ragTestRuns, effectiveScenar
 
           {effectiveSelectedRun ? (
             <>
-              <SectionCard title="Step 2: 检索结果">
+              <SectionCard title="检索结果">
                 <div className="space-y-3">
                   {effectiveSelectedRun.retrievedChunks.map(chunk => (
                     <div key={chunk.id} className="border border-[var(--color-border-light)] rounded-[14px] p-3 text-xs">
@@ -128,7 +158,7 @@ export function RagTestLabPage({ customers, orders, ragTestRuns, effectiveScenar
                 </div>
               </SectionCard>
 
-              <SectionCard title="Step 3: Prompt 预览">
+              <SectionCard title="Prompt 预览">
                 <div className="grid grid-cols-2 gap-3 max-[1000px]:grid-cols-1">
                   <PromptBlock label="系统角色" value={effectiveSelectedRun.promptPreview.systemRole} />
                   <PromptBlock label="客户上下文" value={effectiveSelectedRun.promptPreview.customerContext} />
@@ -142,7 +172,7 @@ export function RagTestLabPage({ customers, orders, ragTestRuns, effectiveScenar
                 </div>
               </SectionCard>
 
-              <SectionCard title="Step 4: AI 草稿与护栏检查">
+              <SectionCard title="AI 草稿与护栏检查">
                 <div className="border border-[var(--color-border-light)] rounded-[14px] p-3 bg-[var(--color-bg)] text-xs whitespace-pre-wrap mb-3">{effectiveSelectedRun.aiDraftReply}</div>
                 <div className="grid grid-cols-3 gap-3 max-[1000px]:grid-cols-2">
                   <InfoCard label="置信度" value={`${effectiveSelectedRun.guardrailCheck.confidence}%`} />
@@ -171,10 +201,9 @@ export function RagTestLabPage({ customers, orders, ragTestRuns, effectiveScenar
               </SectionCard>
             </>
           ) : (
-            <SectionCard title="Step 2-4: 等待运行结果">
+            <SectionCard title="运行结果">
               <EmptyState
                 title="还没有本次调试结果"
-                description="先提交一次问题输入，系统才会展示检索命中、Prompt 预览、AI 草稿和护栏检查。"
                 action={<Button size="sm" onClick={() => { void onRunRagTest({ ...testForm, relatedOrderId: effectiveRelatedOrderId }).then(result => setSelectedRunId(result.run.id)); }}>立即运行</Button>}
                 compact
               />

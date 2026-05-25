@@ -6,13 +6,17 @@ import { DataTable, InlineAction, PageHeader, SectionCard, StatCard } from '../s
 import { displayStageStatus, stageVariant } from '../sharedUtils';
 import { displayLanguage, displayScenario } from '../../../utils/display';
 
-type Props = Pick<AIConsoleProps, 'ingestionDocuments' | 'jobs' | 'onIngestionAction'>;
+type Props = Pick<AIConsoleProps, 'businessCase' | 'ingestionDocuments' | 'jobs' | 'onIngestionAction'>;
 
-export function DocumentIngestionPage({ ingestionDocuments, jobs, onIngestionAction }: Props) {
+export function DocumentIngestionPage({ businessCase, ingestionDocuments, jobs, onIngestionAction }: Props) {
   const [modalState, setModalState] = useState<{ title: string; lines: string[] } | null>(null);
   const processingCount = jobs.filter(item => ['uploaded', 'parsing', 'parsed', 'indexed'].includes(item.status)).length;
   const publishedCount = jobs.filter(item => item.status === 'published').length;
   const exceptionCount = jobs.filter(item => ['chunk_failed', 'embedding_failed', 'version_conflict', 'expired'].includes(item.status)).length;
+  const caseDocuments = businessCase.knowledgeDocuments.map(doc => ({
+    document: doc,
+    ingestion: ingestionDocuments.find(item => item.documentId === doc.id),
+  }));
 
   async function handleIngestionAction(documentId: string, action: 'view_parsed_text' | 'view_chunks' | 'rebuild_embedding' | 'publish' | 'disable') {
     const result = await onIngestionAction(documentId, action);
@@ -38,6 +42,26 @@ export function DocumentIngestionPage({ ingestionDocuments, jobs, onIngestionAct
             <div className="border border-[var(--color-border-light)] rounded-[12px] p-3 bg-[var(--color-bg)]">
               主入口：知识库页面。当前页面只用于看上传后的任务进度、失败原因和发布状态。
             </div>
+            {businessCase.ticket ? (
+              <div className="border border-[var(--color-border-light)] rounded-[12px] p-3 bg-white">
+                <div className="font-medium text-[var(--color-text)] mb-2">当前案例依赖知识</div>
+                {caseDocuments.length > 0 ? (
+                  <div className="space-y-2">
+                    {caseDocuments.map(({ document, ingestion }) => (
+                      <div key={document.id} className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[var(--color-text)]">{document.name}</div>
+                          <div>{displayScenario(document.scenario)} / {document.version}</div>
+                        </div>
+                        <Badge variant={stageVariant(ingestion?.indexStatus ?? 'pending')}>{displayStageStatus(ingestion?.indexStatus ?? 'pending')}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div>当前案例还没有绑定知识文档，后续检索会退回人工或通用规则。</div>
+                )}
+              </div>
+            ) : null}
             <div className="grid grid-cols-3 gap-3 max-[900px]:grid-cols-1">
               <div className="rounded-[18px] border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.68)] p-3.5">
                 <div className="text-[11px] text-[var(--color-text-light)] mb-1">处理中</div>

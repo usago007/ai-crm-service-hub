@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { EvaluationRecord, IngestionJob, KnowledgeDocument, RagRun } from '../types';
-import { useT } from '../i18n';
 import { Badge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
 import { DataTable } from '../components/common/DataTable';
-import { PageHeader, PanelCard, StatCard, inputCls } from '../components/common/PageChrome';
+import { PanelCard, StatCard, SummaryHeader, inputCls } from '../components/common/PageChrome';
 
 interface AIOperationsProps {
   documents: KnowledgeDocument[];
@@ -38,7 +37,6 @@ export function AIOperations({
   onCreateDocument,
   onReindexDocument,
 }: AIOperationsProps) {
-  const { t } = useT();
   const [tab, setTab] = useState<(typeof TABS)[number]>('debugger');
   const [selectedDocumentScenario, setSelectedDocumentScenario] = useState('Shipping');
   const [selectedRun, setSelectedRun] = useState(selectedRunId ?? ragRuns[0]?.id ?? '');
@@ -54,10 +52,7 @@ export function AIOperations({
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        eyebrow="Legacy AI Ops"
-        title={t.page.aiConsole}
-        description={t.page.subtitle_aiConsole}
+      <SummaryHeader
         aside={
           <div className="grid grid-cols-3 gap-3 max-[1100px]:grid-cols-1">
             <StatCard label="Published knowledge assets" value={String(activeDocumentCount)} detail="Active documents available to retrieval filters." />
@@ -133,10 +128,7 @@ export function AIOperations({
                 ))}
           </DataTable>
 
-          <PanelCard title="Create mock ingestion job" description="New documents are created through the API contract. Complaint documents intentionally trigger version conflict branches so the UI can exercise failure handling.">
-            <div className="text-xs text-[var(--color-text-secondary)] mb-4">
-              New documents are created through the API contract. Complaint documents intentionally trigger version conflict branches so the UI can exercise failure handling.
-            </div>
+          <PanelCard title="Create mock ingestion job">
             <div className="mb-3">
               <label className="text-xs text-[var(--color-text-secondary)] block mb-1">Scenario</label>
               <select className={inputCls} value={selectedDocumentScenario} onChange={e => setSelectedDocumentScenario(e.target.value)}>
@@ -282,13 +274,6 @@ export function AIOperations({
               <div><span className="text-[var(--color-text-secondary)]">Filters:</span> {activeRun.metadataFilters.join(', ')}</div>
               <div><span className="text-[var(--color-text-secondary)]">Fallback:</span> {activeRun.fallbackReason || 'No fallback required'}</div>
             </div>
-          </PanelCard>
-          <PanelCard title="Blocked claims and policy gates" description="Keep high-risk response pathways explicit and reviewable.">
-            <ul className="list-disc pl-4 text-xs text-[var(--color-text-secondary)] space-y-1">
-              <li>Do not promise refund or compensation without review approval.</li>
-              <li>Hide unpublished or expired documents from autonomous response logic.</li>
-              <li>Escalate if localized policy coverage is below threshold.</li>
-            </ul>
           </PanelCard>
         </div>
       )}

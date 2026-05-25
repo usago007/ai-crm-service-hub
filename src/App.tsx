@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Sidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
 import { PageShell } from './components/layout/PageShell';
@@ -10,33 +10,61 @@ import { CustomersPage } from './pages/Customers';
 import { OrdersPage } from './pages/Orders';
 import { KnowledgeBase } from './pages/KnowledgeBase';
 import { FollowUpTasks } from './pages/FollowUpTasks';
-import { Analytics } from './pages/Analytics';
 import { Settings } from './pages/Settings';
 import { AIConsole } from './pages/AIConsole';
 import { getAIConsoleLabelFromNav, getAIConsolePageFromNav } from './pages/ai-console/types';
 import { LanguageContext, getTranslations } from './i18n';
 import { useServiceHubApp } from './shared/hooks/useServiceHubApp';
-import type { NavKey } from './types';
+import type { KnowledgeDetailTab, KnowledgeFlow, KnowledgeWizardStep, NavKey } from './types';
 
-function getBreadcrumbPath(page: NavKey, t: ReturnType<typeof getTranslations>, aiConsoleTitle: string | null) {
+function getBreadcrumbPath(page: NavKey, t: ReturnType<typeof getTranslations>, aiConsoleLabel: string | null) {
   if (page === 'knowledge') return [t.nav.aiControl, t.nav.knowledge];
-  if (aiConsoleTitle) return [t.nav.aiControl, aiConsoleTitle.replace('AI 控制台 / ', '')];
+  if (aiConsoleLabel) return [t.nav.aiControl, aiConsoleLabel];
   if (page === 'overview' || page === 'service' || page === 'tickets' || page === 'tasks') return [t.nav.workbench, t.page[page as keyof typeof t.page] ?? t.nav.workbench];
   if (page === 'customers' || page === 'orders') return [t.nav.customerOps, t.page[page as keyof typeof t.page] ?? t.nav.customerOps];
-  if (page === 'insights' || page === 'admin-settings') return [t.nav.adminCenter, t.page[page === 'admin-settings' ? 'adminSettings' : 'insights']];
+  if (page === 'admin-settings') return [t.nav.aiControl, t.page.adminSettings];
   return [t.page[page as keyof typeof t.page] ?? t.page.service];
+}
+
+function getKnowledgeDetailLabel(tab: KnowledgeDetailTab) {
+  if (tab === 'documents') return '文档';
+  if (tab === 'ingestion') return '接入任务';
+  if (tab === 'pipeline') return '流水线';
+  if (tab === 'retrieval-test') return '召回测试';
+  return '设置';
+}
+
+function getKnowledgeWizardLabel(step: KnowledgeWizardStep) {
+  if (step === 1) return '选择数据源';
+  if (step === 2) return '文本分段与清洗';
+  return '处理并完成';
+}
+
+function getKnowledgeBreadcrumbPath(
+  t: ReturnType<typeof getTranslations>,
+  flow: KnowledgeFlow,
+  selectedKnowledgeBaseName: string | null,
+  detailTab: KnowledgeDetailTab,
+  wizardStep: KnowledgeWizardStep,
+) {
+  const basePath = [t.nav.aiControl, t.nav.knowledge];
+  if (flow === 'list' || !selectedKnowledgeBaseName) return basePath;
+  if (flow === 'detail') return [...basePath, selectedKnowledgeBaseName, getKnowledgeDetailLabel(detailTab)];
+  return [...basePath, selectedKnowledgeBaseName, '添加文件', getKnowledgeWizardLabel(wizardStep)];
 }
 
 export default function App() {
   const app = useServiceHubApp();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const t = useMemo(() => getTranslations(app.lang), [app.lang]);
   const activeAIConsolePage = useMemo(() => getAIConsolePageFromNav(app.currentPage), [app.currentPage]);
-  const aiConsoleTitle = useMemo(() => {
-    const activeLabel = getAIConsoleLabelFromNav(app.currentPage);
-    return activeLabel ? `AI 控制台 / ${activeLabel}` : null;
-  }, [app.currentPage]);
-  const breadcrumbPath = useMemo(() => getBreadcrumbPath(app.currentPage, t, aiConsoleTitle), [app.currentPage, t, aiConsoleTitle]);
-
+  const aiConsoleLabel = useMemo(() => getAIConsoleLabelFromNav(app.currentPage), [app.currentPage]);
+  const breadcrumbPath = useMemo(
+    () => (app.currentPage === 'knowledge'
+      ? getKnowledgeBreadcrumbPath(t, app.knowledgeFlow, app.selectedKnowledgeBase?.name ?? null, app.knowledgeDetailTab, app.knowledgeWizardStep)
+      : getBreadcrumbPath(app.currentPage, t, aiConsoleLabel)),
+    [aiConsoleLabel, app.currentPage, app.knowledgeDetailTab, app.knowledgeFlow, app.knowledgeWizardStep, app.selectedKnowledgeBase?.name, t],
+  );
   const handleNavigate = (page: NavKey) => {
     const nextAIPage = getAIConsolePageFromNav(page);
     if (nextAIPage) {
@@ -49,17 +77,17 @@ export default function App() {
     app.pushToast('当前任务由工单执行结果自动驱动生成', 'info');
   };
 
+  const handleOpenAdmin = () => {
+    app.setCurrentPage('admin-settings');
+  };
+
   const renderPage = () => {
     switch (app.currentPage) {
       case 'overview':
         return (
           <Overview
-            analytics={app.snapshot.analytics}
-            activityLog={app.snapshot.activityLog}
-            tickets={app.snapshot.tickets}
-            feedbackLoop={app.snapshot.feedbackLoop}
-            auditLogs={app.snapshot.auditLogs}
-            aiOpsStages={app.snapshot.aiOpsStages}
+            overview={app.overview}
+            onOpenTarget={app.openOverviewTarget}
           />
         );
       case 'service':
@@ -139,6 +167,7 @@ export default function App() {
             ragConfig={app.aiConsole.ragConfig}
             ragTestRuns={app.aiConsole.ragTestRuns}
             jobs={app.aiConsole.jobs}
+            onIngestionAction={app.runIngestionAction}
             onCreateKnowledgeBase={app.createKnowledgeBase}
             onOpenKnowledgeBase={app.openKnowledgeBase}
             onBackToKnowledgeList={app.backToKnowledgeList}
@@ -150,13 +179,10 @@ export default function App() {
             onFinishKnowledgeImport={app.finishKnowledgeImport}
           />
         );
-      case 'ai-console-ingestion':
       case 'ai-console-rag-config':
       case 'ai-console-scenario-policy':
-      case 'ai-console-capability-nodes':
       case 'ai-console-rag-test-lab':
       case 'ai-console-evaluation-feedback':
-      case 'ai-console-audit-logs':
         return (
           <AIConsole
             page={activeAIConsolePage ?? app.aiConsolePage}
@@ -165,6 +191,7 @@ export default function App() {
             aiOpsStages={app.aiConsole.aiOpsStages}
             customers={app.snapshot.customers}
             orders={app.snapshot.orders}
+            businessCase={app.aiConsoleBusinessCase}
             ingestionDocuments={app.aiConsole.ingestionDocuments}
             ragConfig={app.aiConsole.ragConfig}
             ragTestRuns={app.aiConsole.ragTestRuns}
@@ -183,18 +210,29 @@ export default function App() {
             evaluations={app.aiConsole.evaluations}
             feedbackLoop={app.aiConsole.feedbackLoop}
             auditLogs={app.aiConsole.auditLogs}
-            onReplayRun={ticketId => { void app.runRetrieve(ticketId); }}
+            scenarioSettingsTab={app.scenarioSettingsTab}
+            evaluationCenterTab={app.evaluationCenterTab}
+            onOpenPage={handleNavigate}
+            onSelectBusinessTicket={app.setSelectedTicketId}
             onIngestionAction={app.runIngestionAction}
+            onScenarioSettingsTabChange={app.setScenarioSettingsTab}
             onUpdateRagConfig={app.updateRagConfig}
             onUpdateScenarioModelConfig={app.updateScenarioModelConfig}
             onUpdatePipelineNodeConfig={app.updatePipelineNodeConfig}
+            onEvaluationCenterTabChange={app.setEvaluationCenterTab}
             onRunRagTest={app.runRagTest}
           />
         );
       case 'tasks':
-        return <FollowUpTasks tasks={app.snapshot.tasks} customers={app.legacyCustomers} onCreateTask={handleCreateTask} />;
-      case 'insights':
-        return <Analytics analytics={app.snapshot.analytics} />;
+        return (
+          <FollowUpTasks
+            result={app.taskResult}
+            query={app.taskQuery}
+            onQueryChange={app.setTaskQuery}
+            customers={app.legacyCustomers}
+            onCreateTask={handleCreateTask}
+          />
+        );
       case 'admin-settings':
         return (
           <Settings
@@ -218,11 +256,18 @@ export default function App() {
         跳转到主内容
       </a>
       <div className="flex h-screen overflow-hidden" style={{ fontFamily: 'var(--font-family-sans)' }}>
-        <Sidebar currentPage={app.currentPage} tickets={app.legacyTickets} tasks={app.snapshot.tasks} onNavigate={handleNavigate} />
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          currentPage={app.currentPage}
+          tickets={app.legacyTickets}
+          tasks={app.snapshot.tasks}
+          onNavigate={handleNavigate}
+          onToggleCollapsed={() => setSidebarCollapsed(prev => !prev)}
+        />
         <main id="main-content" className="flex-1 flex flex-col min-w-0 relative">
           <Topbar
             path={breadcrumbPath}
-            aiEnabled={!app.aiConsole.environment.maintenanceMode}
+            onOpenAdmin={handleOpenAdmin}
           />
           <PageShell>
             {renderPage()}

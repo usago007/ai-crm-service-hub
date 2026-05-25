@@ -15,12 +15,32 @@ import type {
   PagedResult,
   PipelineNodeModelConfig,
   RagConfigSnapshot,
+  ReplyDraft,
   RagRun,
   RagRunFilters,
   RagTestRun,
+  ScenarioSettingsTab,
+  ReviewDecision,
   ScenarioModelConfig,
+  ServiceTicket,
+  FollowUpTask,
+  KnowledgeDocument,
   NavKey,
+  EvaluationCenterTab,
 } from '../../types';
+
+export interface AIConsoleBusinessCase {
+  ticket: ServiceTicket | null;
+  customer: CustomerProfile | null;
+  order: Order | null;
+  review: ReviewDecision | null;
+  draft: ReplyDraft | null;
+  ragRun: RagRun | null;
+  knowledgeDocuments: KnowledgeDocument[];
+  auditLogs: AuditLogRecord[];
+  followUpTasks: FollowUpTask[];
+  messageCount: number;
+}
 
 export interface AIConsoleProps {
   page: AIConsolePageKey;
@@ -29,6 +49,7 @@ export interface AIConsoleProps {
   aiOpsStages: { id: string; stage: string; owner: string; status: 'healthy' | 'watch' | 'risk'; throughput: string; detail: string; controlPoint: string }[];
   customers: CustomerProfile[];
   orders: Order[];
+  businessCase: AIConsoleBusinessCase;
   ingestionDocuments: IngestionDocumentRecord[];
   ragConfig: RagConfigSnapshot;
   ragTestRuns: RagTestRun[];
@@ -47,31 +68,37 @@ export interface AIConsoleProps {
   evaluations: EvaluationRecord[];
   feedbackLoop: FeedbackLoopRecord[];
   auditLogs: AuditLogRecord[];
-  onReplayRun: (ticketId: string) => void;
+  scenarioSettingsTab: ScenarioSettingsTab;
+  evaluationCenterTab: EvaluationCenterTab;
+  onOpenPage: (page: NavKey) => void;
+  onSelectBusinessTicket: (ticketId: string) => void;
   onIngestionAction: (documentId: string, action: 'view_parsed_text' | 'view_chunks' | 'rebuild_embedding' | 'publish' | 'disable') => Promise<{ parsedText?: string; chunks?: string[]; message: string }>;
+  onScenarioSettingsTabChange: (tab: ScenarioSettingsTab) => void;
   onUpdateRagConfig: (config: RagConfigSnapshot) => Promise<unknown>;
   onUpdateScenarioModelConfig: (config: ScenarioModelConfig) => Promise<unknown>;
   onUpdatePipelineNodeConfig: (config: PipelineNodeModelConfig) => Promise<unknown>;
+  onEvaluationCenterTabChange: (tab: EvaluationCenterTab) => void;
   onRunRagTest: (payload: { customerQuestion: string; customerId: string; scenario: string; language: string; relatedOrderId: string }) => Promise<{ run: RagTestRun }>;
 }
 
 export const AI_CONSOLE_PAGES: Array<{ key: AIConsolePageKey; navKey: NavKey; label: string; description: string }> = [
-  { key: 'ingestion', navKey: 'ai-console-ingestion', label: '接入任务', description: '查看上传后的解析、分段、向量化、索引与发布状态' },
   { key: 'rag-config', navKey: 'ai-console-rag-config', label: '全局 RAG 配置', description: '维护环境级默认解析、切片、检索与 Prompt 组装参数' },
   { key: 'scenario-policy', navKey: 'ai-console-scenario-policy', label: '场景策略', description: '按业务场景统一管理模型、复核、发送权限与回退策略' },
-  { key: 'capability-nodes', navKey: 'ai-console-capability-nodes', label: '能力节点', description: '按节点管理启停、继承关系、模型覆盖与运行约束' },
   { key: 'rag-test-lab', navKey: 'ai-console-rag-test-lab', label: 'RAG 调试台', description: '问题输入、检索结果、Prompt 预览与护栏结果' },
   { key: 'evaluation-feedback', navKey: 'ai-console-evaluation-feedback', label: '评测与反馈', description: '评测指标、反馈闭环与优化规则' },
-  { key: 'audit-logs', navKey: 'ai-console-audit-logs', label: '审计日志', description: '记录发送、拦截、知识事件与人工改判' },
 ];
 
 export const AI_CONSOLE_NAV_KEYS = new Set<NavKey>(AI_CONSOLE_PAGES.map(item => item.navKey));
 
 export function getAIConsolePageFromNav(page: NavKey): AIConsolePageKey | null {
+  if (page === 'ai-console-capability-nodes') return 'scenario-policy';
+  if (page === 'ai-console-audit-logs') return 'evaluation-feedback';
   return AI_CONSOLE_PAGES.find(item => item.navKey === page)?.key ?? null;
 }
 
 export function getAIConsoleLabelFromNav(page: NavKey): string | null {
+  if (page === 'ai-console-capability-nodes') return '场景策略';
+  if (page === 'ai-console-audit-logs') return '评测与反馈';
   return AI_CONSOLE_PAGES.find(item => item.navKey === page)?.label ?? null;
 }
 

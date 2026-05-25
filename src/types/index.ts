@@ -13,17 +13,68 @@ export type NavKey =
   | 'ai-console-evaluation-feedback'
   | 'ai-console-audit-logs'
   | 'tasks'
-  | 'insights'
   | 'admin-settings';
 
 export type AIConsolePageKey =
-  | 'ingestion'
   | 'rag-config'
   | 'scenario-policy'
-  | 'capability-nodes'
   | 'rag-test-lab'
-  | 'evaluation-feedback'
-  | 'audit-logs';
+  | 'evaluation-feedback';
+
+export interface OverviewNavigationTarget {
+  page: NavKey;
+  search?: string;
+  ticketId?: string;
+  customerId?: string;
+  orderId?: string;
+  ticketFilters?: Partial<TicketFilters>;
+  customerFilters?: Partial<CustomerFilters>;
+  orderFilters?: Partial<OrderFilters>;
+}
+
+export interface OverviewMetric {
+  id: string;
+  label: string;
+  value: string;
+  detail: string;
+  tone?: 'default' | 'success' | 'warning' | 'danger';
+  target?: OverviewNavigationTarget;
+}
+
+export interface OverviewEventItem {
+  id: string;
+  title: string;
+  detail: string;
+  meta: string;
+  tone: 'green' | 'yellow' | 'red' | 'blue' | 'gray';
+  target: OverviewNavigationTarget;
+}
+
+export interface OverviewTodoItem {
+  id: string;
+  title: string;
+  detail: string;
+  badge: string;
+  tone: 'green' | 'yellow' | 'red' | 'blue' | 'gray';
+  target: OverviewNavigationTarget;
+}
+
+export interface OverviewShortcutItem {
+  id: string;
+  label: string;
+  description: string;
+  countLabel: string;
+  tone: 'green' | 'yellow' | 'red' | 'blue' | 'gray';
+  target: OverviewNavigationTarget;
+}
+
+export interface OverviewSnapshot {
+  metrics: OverviewMetric[];
+  analytics: AnalyticsData;
+  events: OverviewEventItem[];
+  todos: OverviewTodoItem[];
+  shortcuts: OverviewShortcutItem[];
+}
 
 export type TicketStatus = 'New' | 'In Progress' | 'Pending Review' | 'Waiting Customer' | 'Closed' | 'Escalated';
 export type Priority = 'Urgent' | 'High' | 'Normal' | 'Low';
@@ -77,7 +128,9 @@ export type IngestionStageStatus =
   | 'disabled';
 
 export type KnowledgeFlow = 'list' | 'detail' | 'wizard';
-export type KnowledgeDetailTab = 'documents' | 'pipeline' | 'retrieval-test' | 'settings';
+export type KnowledgeDetailTab = 'documents' | 'ingestion' | 'pipeline' | 'retrieval-test' | 'settings';
+export type ScenarioSettingsTab = 'scenario' | 'nodes';
+export type EvaluationCenterTab = 'evaluation' | 'audit';
 export type KnowledgeWizardStep = 1 | 2 | 3;
 export type KnowledgeWizardSource = 'file' | 'notion' | 'web';
 export type KnowledgeBaseSource = 'service_api' | 'external_api';
@@ -812,6 +865,12 @@ export interface OrderFilters {
   paymentStatus?: string;
   country?: string;
   risk?: string;
+}
+
+export interface TaskFilters {
+  status?: string;
+  priority?: string;
+  triggeredBy?: string;
 }
 
 export interface DocumentFilters {

@@ -16,6 +16,7 @@ import type {
   PipelineNodeModelConfig,
   Order,
   OrderFilters,
+  TaskFilters,
   PolicyDoc,
   PagedResult,
   PromptPreviewSnapshot,
@@ -147,6 +148,7 @@ export interface ServiceHubApi {
   getTickets(query: ListQuery<TicketFilters>): Promise<PagedResult<ServiceTicket>>;
   getTicket(id: string): Promise<ServiceTicket | undefined>;
   getOrders(query: ListQuery<OrderFilters>): Promise<PagedResult<Order>>;
+  getTasks(query: ListQuery<TaskFilters>): Promise<PagedResult<FollowUpTask>>;
   retrieveTicket(request: TicketRetrieveRequest): Promise<{ snapshot: ServiceHubSnapshot; ragRun: RagRun | undefined }>;
   draftTicket(request: TicketDraftRequest): Promise<{ snapshot: ServiceHubSnapshot; draft: ReplyDraft | undefined }>;
   sendTicketReply(request: TicketReplySendRequest): Promise<TicketReplySendResult>;

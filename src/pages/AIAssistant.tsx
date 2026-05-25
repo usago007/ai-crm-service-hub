@@ -2,8 +2,7 @@ import type { AICapability, PermissionBoundary } from '../types';
 import { DataTable } from '../components/common/DataTable';
 import { Toggle } from '../components/common/Toggle';
 import { Badge } from '../components/common/Badge';
-import { PageHeader, PanelCard, StatCard } from '../components/common/PageChrome';
-import { useT } from '../i18n';
+import { PanelCard, StatCard, SummaryHeader } from '../components/common/PageChrome';
 
 interface AIAssistantProps {
   aiCapabilities: AICapability[];
@@ -13,17 +12,13 @@ interface AIAssistantProps {
 }
 
 export function AIAssistant({ aiCapabilities, permissionBoundaries, guardrails, onToggleCapability }: AIAssistantProps) {
-  const { t } = useT();
   const enabledCount = aiCapabilities.filter(item => item.enabled).length;
   const manualReviewCount = permissionBoundaries.filter(item => item.manualReview !== 'No').length;
   const blockedSendCount = permissionBoundaries.filter(item => item.aiSend !== 'No').length;
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        eyebrow="AI control"
-        title={t.page.aiConsole}
-        description={t.page.subtitle_aiConsole}
+      <SummaryHeader
         aside={
           <div className="grid grid-cols-3 gap-3 max-[1100px]:grid-cols-1">
             <StatCard label="启用能力" value={String(enabledCount)} detail="当前允许 AI 参与的能力节点数量。" />
