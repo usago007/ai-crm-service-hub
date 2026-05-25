@@ -67,7 +67,7 @@ export function TicketsPage({ result, reviews, query, onQueryChange, selectedTic
                 <table className="w-full border-collapse min-w-[1200px]">
                   <thead>
                     <tr>
-                      {['工单', '意图', '渠道', '流程', '风险', '负责人', '所需动作', '区域', '复核', ''].map(header => (
+                      {['工单', '意图', '渠道', '流程', '风险', '负责人', '所需动作', '区域', '复核', '操作'].map(header => (
                         <th key={header} className="text-left px-4 py-3 text-[11px] uppercase tracking-[0.18em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">{header}</th>
                       ))}
                     </tr>

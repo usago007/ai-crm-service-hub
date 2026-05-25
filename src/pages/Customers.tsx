@@ -70,7 +70,7 @@ export function CustomersPage({ result, query, onQueryChange, selectedCustomerId
                 <table className="w-full border-collapse min-w-[1100px]">
                   <thead>
                     <tr>
-                      {['客户', '分群', '国家', '语言', '负责人', '投诉历史', '退款历史', '履约达成率', '风险标签', ''].map(header => (
+                      {['客户', '分群', '国家', '语言', '负责人', '投诉历史', '退款历史', '履约达成率', '风险标签', '操作'].map(header => (
                         <th key={header} className="text-left px-4 py-3 text-[11px] uppercase tracking-[0.18em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">{header}</th>
                       ))}
                     </tr>

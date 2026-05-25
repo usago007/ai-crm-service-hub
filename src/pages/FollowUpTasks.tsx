@@ -131,7 +131,7 @@ export function FollowUpTasks({ result, query, onQueryChange, customers, onCreat
               <table className="w-full border-collapse min-w-[980px]">
                 <thead>
                   <tr>
-                    {[t.tableHeader.task, t.tableHeader.customer, t.tableHeader.relatedTicket, t.tableHeader.due, t.tableHeader.priority, t.tableHeader.triggeredBy, t.tableHeader.status, t.tableHeader.owner, ''].map((header, index) => (
+                    {[t.tableHeader.task, t.tableHeader.customer, t.tableHeader.relatedTicket, t.tableHeader.due, t.tableHeader.priority, t.tableHeader.triggeredBy, t.tableHeader.status, t.tableHeader.owner, '操作'].map((header, index) => (
                       <th key={`${header}-${index}`} className="text-left px-4 py-3 text-[11px] uppercase tracking-[0.18em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">
                         {header}
                       </th>

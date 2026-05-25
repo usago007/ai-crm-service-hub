@@ -65,7 +65,7 @@ export function OrdersPage({ result, customers, query, onQueryChange, selectedOr
                 <table className="w-full border-collapse min-w-[1000px]">
                   <thead>
                     <tr>
-                      {['订单', '客户', '日期', '支付', '履约', '物流商', '国家', '风险', ''].map(header => (
+                      {['订单', '客户', '日期', '支付', '履约', '物流商', '国家', '风险', '操作'].map(header => (
                         <th key={header} className="text-left px-4 py-3 text-[11px] uppercase tracking-[0.18em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">{header}</th>
                       ))}
                     </tr>
