@@ -8,6 +8,7 @@ import { CustomerService } from './pages/CustomerService';
 import { TicketsPage } from './pages/Tickets';
 import { CustomersPage } from './pages/Customers';
 import { OrdersPage } from './pages/Orders';
+import { OperationLogsPage } from './pages/OperationLogs';
 import { KnowledgeBase } from './pages/KnowledgeBase';
 import { FollowUpTasks } from './pages/FollowUpTasks';
 import { Settings } from './pages/Settings';
@@ -19,6 +20,7 @@ import type { KnowledgeDetailTab, KnowledgeFlow, KnowledgeWizardStep, NavKey } f
 
 function getBreadcrumbPath(page: NavKey, t: ReturnType<typeof getTranslations>, aiConsoleLabel: string | null) {
   if (page === 'knowledge') return [t.nav.aiControl, t.nav.knowledge];
+  if (page === 'system-operation-logs') return [t.nav.aiControl, '操作日志'];
   if (aiConsoleLabel) return [t.nav.aiControl, aiConsoleLabel];
   if (page === 'overview' || page === 'service' || page === 'tickets' || page === 'tasks') return [t.nav.workbench, t.page[page as keyof typeof t.page] ?? t.nav.workbench];
   if (page === 'customers' || page === 'orders') return [t.nav.customerOps, t.page[page as keyof typeof t.page] ?? t.nav.customerOps];
@@ -179,10 +181,19 @@ export default function App() {
             onFinishKnowledgeImport={app.finishKnowledgeImport}
           />
         );
+      case 'system-operation-logs':
+        return (
+          <OperationLogsPage
+            result={app.operationLogResult}
+            query={app.operationLogQuery}
+            onQueryChange={app.setOperationLogQuery}
+          />
+        );
       case 'ai-console-rag-config':
       case 'ai-console-scenario-policy':
       case 'ai-console-rag-test-lab':
       case 'ai-console-evaluation-feedback':
+      case 'ai-console-service-health':
         return (
           <AIConsole
             page={activeAIConsolePage ?? app.aiConsolePage}
@@ -210,6 +221,7 @@ export default function App() {
             evaluations={app.aiConsole.evaluations}
             feedbackLoop={app.aiConsole.feedbackLoop}
             auditLogs={app.aiConsole.auditLogs}
+            serviceHealth={app.aiConsole.serviceHealth}
             scenarioSettingsTab={app.scenarioSettingsTab}
             evaluationCenterTab={app.evaluationCenterTab}
             onOpenPage={handleNavigate}
@@ -221,6 +233,11 @@ export default function App() {
             onUpdatePipelineNodeConfig={app.updatePipelineNodeConfig}
             onEvaluationCenterTabChange={app.setEvaluationCenterTab}
             onRunRagTest={app.runRagTest}
+            onRefreshServiceHealth={app.refreshServiceHealth}
+            onRunServiceHealthCheck={app.runServiceHealthCheck}
+            onRetryFailedJobs={app.retryFailedJobs}
+            onRebuildVectorIndex={app.rebuildVectorIndex}
+            onViewServiceHealthLastError={app.viewServiceHealthLastError}
           />
         );
       case 'tasks':
@@ -240,6 +257,7 @@ export default function App() {
             onLanguageChange={app.setLang}
             settings={app.snapshot.settings}
             agents={app.snapshot.agents}
+            permissionBoundaries={app.snapshot.permissionBoundaries}
           />
         );
       default:

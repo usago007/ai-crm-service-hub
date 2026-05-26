@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Customer, FollowUpTask, ListQuery, PagedResult, TaskFilters } from '../types';
 import { slaSt, slaLbl } from '../utils/format';
 import { Badge, type BadgeVariant } from '../components/common/Badge';
@@ -33,29 +33,13 @@ export function FollowUpTasks({ result, query, onQueryChange, customers, onCreat
   const { t } = useT();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(result.items[0]?.id ?? null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const activeTask = selectedTaskId ? result.items.find(task => task.id === selectedTaskId) ?? result.items[0] ?? null : result.items[0] ?? null;
+  const activeTask = useMemo(
+    () => (selectedTaskId ? result.items.find(task => task.id === selectedTaskId) ?? result.items[0] ?? null : result.items[0] ?? null),
+    [result.items, selectedTaskId],
+  );
   const activeCustomer = activeTask ? getC(customers, activeTask.customerId) : null;
   const pendingCount = useMemo(() => result.items.filter(task => task.status === '待处理').length, [result.items]);
   const urgentCount = useMemo(() => result.items.filter(task => task.priority === 'Urgent').length, [result.items]);
-
-  useEffect(() => {
-    if (result.items.length === 0) {
-      setSelectedTaskId(null);
-      if (drawerOpen) setDrawerOpen(false);
-      return;
-    }
-
-    if (!selectedTaskId) {
-      setSelectedTaskId(result.items[0].id);
-      return;
-    }
-
-    const stillVisible = result.items.some(task => task.id === selectedTaskId);
-    if (!stillVisible) {
-      setSelectedTaskId(result.items[0].id);
-      if (drawerOpen) setDrawerOpen(false);
-    }
-  }, [drawerOpen, result.items, selectedTaskId]);
 
   return (
     <div className="space-y-4">

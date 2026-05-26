@@ -22,6 +22,7 @@ export function Sidebar({ collapsed, currentPage, tickets, tasks, onNavigate, on
     'ai-console-scenario-policy': Map,
     'ai-console-rag-test-lab': FlaskConical,
     'ai-console-evaluation-feedback': BarChart3,
+    'ai-console-service-health': Cpu,
   };
 
   const groups = [
@@ -51,6 +52,7 @@ export function Sidebar({ collapsed, currentPage, tickets, tasks, onNavigate, on
           icon: aiConsoleIconMap[item.navKey] ?? Cpu,
           count: undefined,
         })),
+        { key: 'system-operation-logs' as NavKey, label: '操作日志', icon: BarChart3, count: undefined },
         { key: 'admin-settings' as NavKey, label: t.nav.settings, icon: Settings, count: undefined },
       ],
     },

@@ -22,6 +22,7 @@ import type {
   CustomerProfile,
   DocumentFilters,
   FollowUpTask,
+  GlobalOperationLogEntry,
   GuardrailCheckResult,
   IngestionDocumentRecord,
   IngestionJob,
@@ -31,6 +32,7 @@ import type {
   ListQuery,
   Order,
   OrderFilters,
+  OperationLogFilters,
   TaskFilters,
   PagedResult,
   RagRun,
@@ -44,6 +46,7 @@ import type {
   TicketAction,
   TicketFilters,
 } from '../../types';
+import { deriveServiceHealthSnapshot } from '../../mocks/fixtures/serviceHub';
 import {
   buildDerivedRoutingSummary,
   buildEffectiveNodePolicies,
@@ -65,6 +68,11 @@ function nowUiStamp() {
   const now = new Date();
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+function withServiceHealth(snapshot: ServiceHubSnapshot) {
+  snapshot.serviceHealth = deriveServiceHealthSnapshot(snapshot);
+  return snapshot;
 }
 
 function paginate<T>(items: T[], query: Pick<ListQuery<object>, 'page' | 'pageSize'>): PagedResult<T> {
@@ -93,6 +101,32 @@ function sortByKey<T>(items: T[], key: string, order: 'asc' | 'desc') {
     const leftValue = String((left as Record<string, unknown>)[key] ?? '');
     const rightValue = String((right as Record<string, unknown>)[key] ?? '');
     return order === 'asc' ? leftValue.localeCompare(rightValue) : rightValue.localeCompare(leftValue);
+  });
+}
+
+function parseOperationLogTimestamp(value: string) {
+  const relativeMatch = value.match(/^(\d+)\s*分钟前$/);
+  if (relativeMatch) {
+    const minutes = Number(relativeMatch[1]);
+    return Date.now() - minutes * 60_000;
+  }
+  const hourMatch = value.match(/^(\d+)\s*小时前$/);
+  if (hourMatch) {
+    const hours = Number(hourMatch[1]);
+    return Date.now() - hours * 3_600_000;
+  }
+  const direct = Date.parse(value.replace(' ', 'T'));
+  return Number.isNaN(direct) ? 0 : direct;
+}
+
+function sortOperationLogs(items: GlobalOperationLogEntry[], query: Pick<ListQuery<object>, 'sortBy' | 'sortOrder'>) {
+  if (query.sortBy !== 'timestampLabel') {
+    return sortByKey(items, query.sortBy, query.sortOrder);
+  }
+  return [...items].sort((left, right) => {
+    const leftValue = parseOperationLogTimestamp(left.timestampLabel);
+    const rightValue = parseOperationLogTimestamp(right.timestampLabel);
+    return query.sortOrder === 'asc' ? leftValue - rightValue : rightValue - leftValue;
   });
 }
 
@@ -133,6 +167,16 @@ function filterTasks(items: FollowUpTask[], filters: TaskFilters) {
     if (filters.status && item.status !== filters.status) return false;
     if (filters.priority && item.priority !== filters.priority) return false;
     if (filters.triggeredBy && item.triggeredBy !== filters.triggeredBy) return false;
+    return true;
+  });
+}
+
+function filterOperationLogs(items: GlobalOperationLogEntry[], filters: OperationLogFilters) {
+  return items.filter(item => {
+    if (filters.sourceType && item.sourceType !== filters.sourceType) return false;
+    if (filters.scope && item.scope !== filters.scope) return false;
+    if (filters.riskLevel && item.riskLevel !== filters.riskLevel) return false;
+    if (filters.actor && item.actor !== filters.actor) return false;
     return true;
   });
 }
@@ -350,6 +394,15 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
       const next = cloneSnapshot(snapshot);
       const filtered = applySearch(filterTasks(next.tasks, query.filters), query.search, item => `${item.description} ${item.ticketId} ${item.owner} ${item.triggeredBy}`);
       return paginate(sortByKey(filtered, query.sortBy, query.sortOrder), query);
+    },
+    async getOperationLogs(query) {
+      const next = cloneSnapshot(snapshot);
+      const filtered = applySearch(
+        filterOperationLogs(next.operationLogs, query.filters),
+        query.search,
+        item => `${item.actor} ${item.action} ${item.scope} ${item.detail} ${item.result}`,
+      );
+      return paginate(sortOperationLogs(filtered, query), query);
     },
     async retrieveTicket(request: TicketRetrieveRequest) {
       const next = cloneSnapshot(snapshot);
@@ -611,6 +664,7 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
       next.knowledgeDocuments = [document, ...next.knowledgeDocuments];
       next.ingestionJobs = [job, ...next.ingestionJobs];
       next.ingestionDocuments = [ingestionDocument, ...next.ingestionDocuments];
+      withServiceHealth(next);
       return { snapshot: next, job, document };
     },
     async reindexKnowledgeDocument(id: string) {
@@ -629,6 +683,7 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
         ingestionDocument.vectorCount = ingestionDocument.chunkCount || Math.max(8, document?.chunkCount ?? 0);
         ingestionDocument.lastSync = nowUiStamp();
       }
+      withServiceHealth(next);
       return { snapshot: next, job };
     },
     async runIngestionAction(request: IngestionActionRequest) {
@@ -668,6 +723,7 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
           knowledgeDocument.vectorCount = document.vectorCount;
           knowledgeDocument.coverageScore = Math.max(knowledgeDocument.coverageScore, 82);
         }
+        withServiceHealth(next);
         return { snapshot: next, document, message: '已完成重建向量。' };
       }
 
@@ -688,6 +744,7 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
           knowledgeDocument.vectorCount = document.vectorCount;
           knowledgeDocument.coverageScore = Math.max(knowledgeDocument.coverageScore, 90);
         }
+        withServiceHealth(next);
         return { snapshot: next, document, message: '文档已发布。' };
       }
 
@@ -702,6 +759,7 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
       if (knowledgeDocument) {
         knowledgeDocument.publishStatus = 'expired';
       }
+      withServiceHealth(next);
       return { snapshot: next, document, message: '文档已禁用。' };
     },
     async updateRagConfig(request: UpdateRagConfigRequest) {
@@ -710,6 +768,7 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
         ...request.ragConfig,
         updatedAt: nowUiStamp(),
       };
+      withServiceHealth(next);
       return { snapshot: next, ragConfig: next.ragConfig };
     },
     async updateScenarioModelConfig(request: UpdateScenarioModelConfigRequest) {
@@ -722,6 +781,7 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
         defaultScenarioConfigId: next.modelRoutingSummary.defaultScenarioConfigId,
       };
       const config = next.scenarioModelConfigs.find(item => item.id === request.config.id) ?? request.config;
+      withServiceHealth(next);
       return { snapshot: next, config };
     },
     async updatePipelineNodeConfig(request: UpdatePipelineNodeConfigRequest) {
@@ -735,6 +795,7 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
         defaultScenarioConfigId: next.modelRoutingSummary.defaultScenarioConfigId,
       };
       const config = next.pipelineNodeConfigs.find(item => item.id === request.config.id) ?? request.config;
+      withServiceHealth(next);
       return { snapshot: next, config };
     },
     async getRagRuns(query) {
@@ -749,7 +810,86 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
       const next = cloneSnapshot(snapshot);
       const result = createRagTestRun(next, request);
       next.ragTestRuns = [result.run, ...next.ragTestRuns.filter(item => item.id !== result.run.id)];
+      withServiceHealth(next);
       return { ...result, snapshot: next };
+    },
+    async refreshServiceHealth() {
+      const next = cloneSnapshot(snapshot);
+      const health = structuredClone(next.serviceHealth);
+      health.llmStatus.lastChecked = nowUiStamp();
+      health.llmStatus.avgLatencyMs = Math.max(1550, health.llmStatus.avgLatencyMs + 40);
+      health.llmStatus.rateLimitUsage = Math.min(78, health.llmStatus.rateLimitUsage + 1);
+      health.embeddingStatus.queueSize = Math.max(6, health.embeddingStatus.queueSize - 1);
+      health.embeddingStatus.lastSuccessfulRun = nowUiStamp();
+      health.vectorDbStatus.queryLatencyMs = Math.max(72, health.vectorDbStatus.queryLatencyMs - 4);
+      health.functionalModelStatuses = health.functionalModelStatuses.map(item => ({
+        ...item,
+        lastChecked: health.llmStatus.lastChecked,
+        avgLatencyMs: Math.max(1100, item.avgLatencyMs + (item.nodeId === 'reply-drafting' ? 35 : 18)),
+      }));
+      health.scenarioModelStatuses = health.scenarioModelStatuses.map(item => ({
+        ...item,
+        lastChecked: health.llmStatus.lastChecked,
+        avgLatencyMs: Math.max(1500, item.avgLatencyMs + (['Refund', 'Complaint', 'Compensation', 'Chargeback'].includes(item.scenario) ? 28 : 16)),
+      }));
+      health.ingestionQueue.lastSuccessfulSync = nowUiStamp();
+      health.ingestionQueue.oldestPendingJob = health.ingestionQueue.pendingJobs > 0 ? nowUiStamp() : 'none';
+      health.recentErrors = health.recentErrors.map((item, index) => index === 0 ? { ...item, detectedAt: nowUiStamp() } : item);
+      next.serviceHealth = health;
+      return { snapshot: next, serviceHealth: next.serviceHealth };
+    },
+    async runServiceHealthCheck() {
+      const next = cloneSnapshot(snapshot);
+      const health = deriveServiceHealthSnapshot(next);
+      health.lastHealthCheck = {
+        checkedAt: nowUiStamp(),
+        overallStatus: health.diagnostics.some(item => item.severity === 'critical') ? 'degraded' : 'healthy',
+        summary: health.diagnostics.some(item => item.severity === 'critical')
+          ? '发现知识发布与检索侧异常，建议先处理失败接入任务。'
+          : '核心依赖稳定，未发现阻断性问题。',
+        findings: health.diagnostics.slice(0, 3).map(item => item.issue),
+      };
+      next.serviceHealth = health;
+      return { snapshot: next, result: next.serviceHealth.lastHealthCheck };
+    },
+    async retryFailedIngestionJobs() {
+      const next = cloneSnapshot(snapshot);
+      const retriedJobRecords = next.ingestionJobs
+        .filter(job => ['embedding_failed', 'chunk_failed', 'version_conflict', 'expired'].includes(job.status))
+        .slice(0, 3)
+        .map(job => ({ id: job.id, documentId: job.documentId }));
+      const retriedJobs = retriedJobRecords.map(item => item.id);
+      const retriedDocumentIds = new Set(retriedJobRecords.map(item => item.documentId));
+      next.ingestionJobs = next.ingestionJobs.map(job => retriedJobs.includes(job.id)
+        ? { ...job, status: 'indexed', updatedAt: nowIso(), detail: '已加入重试队列，等待重新发布。' }
+        : job);
+      next.ingestionDocuments = next.ingestionDocuments.map(document => retriedDocumentIds.has(document.documentId)
+        ? { ...document, embeddingStatus: 'embedded', indexStatus: 'indexed', lastSync: nowUiStamp() }
+        : document);
+      withServiceHealth(next);
+      next.serviceHealth.ingestionQueue.recentTasks = next.serviceHealth.ingestionQueue.recentTasks.map(task => retriedJobs.includes(task.jobId)
+        ? { ...task, status: 'retrying', retryCount: task.retryCount + 1, errorMessage: 'none' }
+        : task);
+      return { snapshot: next, serviceHealth: next.serviceHealth, retriedJobs };
+    },
+    async rebuildVectorIndex() {
+      const next = cloneSnapshot(snapshot);
+      withServiceHealth(next);
+      next.serviceHealth.vectorDbStatus.indexStatus = 'building';
+      next.serviceHealth.vectorDbStatus.lastRebuild = nowUiStamp();
+      next.serviceHealth.vectorDbStatus.lastQueryError = 'none';
+      next.serviceHealth.lastHealthCheck = {
+        checkedAt: nowUiStamp(),
+        overallStatus: 'degraded',
+        summary: '已触发 mock 重建索引，请等待向量索引回到 ready。',
+        findings: ['Vector index rebuild requested'],
+      };
+      return { snapshot: next, serviceHealth: next.serviceHealth, message: '已触发 mock 索引重建。' };
+    },
+    async getServiceHealthLastError(id?: string) {
+      const next = cloneSnapshot(snapshot);
+      if (id) return next.serviceHealth.recentErrors.find(item => item.id === id);
+      return next.serviceHealth.recentErrors[0];
     },
     async getEvaluations() {
       return cloneSnapshot(snapshot).evaluations;
@@ -777,6 +917,7 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
         evaluations: next.evaluations,
         feedbackLoop: next.feedbackLoop,
         auditLogs: next.auditLogs,
+        serviceHealth: next.serviceHealth,
       };
       return aiConsole;
     },

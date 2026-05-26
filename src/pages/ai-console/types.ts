@@ -22,6 +22,9 @@ import type {
   ScenarioSettingsTab,
   ReviewDecision,
   ScenarioModelConfig,
+  ServiceHealthCheckResult,
+  ServiceHealthError,
+  ServiceHealthSnapshot,
   ServiceTicket,
   FollowUpTask,
   KnowledgeDocument,
@@ -68,6 +71,7 @@ export interface AIConsoleProps {
   evaluations: EvaluationRecord[];
   feedbackLoop: FeedbackLoopRecord[];
   auditLogs: AuditLogRecord[];
+  serviceHealth: ServiceHealthSnapshot;
   scenarioSettingsTab: ScenarioSettingsTab;
   evaluationCenterTab: EvaluationCenterTab;
   onOpenPage: (page: NavKey) => void;
@@ -79,13 +83,19 @@ export interface AIConsoleProps {
   onUpdatePipelineNodeConfig: (config: PipelineNodeModelConfig) => Promise<unknown>;
   onEvaluationCenterTabChange: (tab: EvaluationCenterTab) => void;
   onRunRagTest: (payload: { customerQuestion: string; customerId: string; scenario: string; language: string; relatedOrderId: string }) => Promise<{ run: RagTestRun }>;
+  onRefreshServiceHealth: () => Promise<ServiceHealthSnapshot>;
+  onRunServiceHealthCheck: () => Promise<ServiceHealthCheckResult>;
+  onRetryFailedJobs: () => Promise<{ retriedJobs: string[] }>;
+  onRebuildVectorIndex: () => Promise<{ message: string }>;
+  onViewServiceHealthLastError: (id?: string) => Promise<ServiceHealthError | undefined>;
 }
 
 export const AI_CONSOLE_PAGES: Array<{ key: AIConsolePageKey; navKey: NavKey; label: string; description: string }> = [
   { key: 'rag-config', navKey: 'ai-console-rag-config', label: '全局 RAG 配置', description: '维护环境级默认解析、切片、检索与 Prompt 组装参数' },
-  { key: 'scenario-policy', navKey: 'ai-console-scenario-policy', label: '场景策略', description: '按业务场景统一管理模型、复核、发送权限与回退策略' },
+  { key: 'scenario-policy', navKey: 'ai-console-scenario-policy', label: 'AI 场景策略', description: '按业务场景统一管理模型、复核、发送权限与回退策略' },
   { key: 'rag-test-lab', navKey: 'ai-console-rag-test-lab', label: 'RAG 调试台', description: '问题输入、检索结果、Prompt 预览与护栏结果' },
   { key: 'evaluation-feedback', navKey: 'ai-console-evaluation-feedback', label: '评测与反馈', description: '评测指标、反馈闭环与优化规则' },
+  { key: 'service-health', navKey: 'ai-console-service-health', label: '运行状态', description: '定位模型、向量库、连接器与文档接入链路异常' },
 ];
 
 export const AI_CONSOLE_NAV_KEYS = new Set<NavKey>(AI_CONSOLE_PAGES.map(item => item.navKey));
@@ -93,12 +103,14 @@ export const AI_CONSOLE_NAV_KEYS = new Set<NavKey>(AI_CONSOLE_PAGES.map(item => 
 export function getAIConsolePageFromNav(page: NavKey): AIConsolePageKey | null {
   if (page === 'ai-console-capability-nodes') return 'scenario-policy';
   if (page === 'ai-console-audit-logs') return 'evaluation-feedback';
+  if (page === 'ai-console-service-health') return 'service-health';
   return AI_CONSOLE_PAGES.find(item => item.navKey === page)?.key ?? null;
 }
 
 export function getAIConsoleLabelFromNav(page: NavKey): string | null {
-  if (page === 'ai-console-capability-nodes') return '场景策略';
+  if (page === 'ai-console-capability-nodes') return 'AI 场景策略';
   if (page === 'ai-console-audit-logs') return '评测与反馈';
+  if (page === 'ai-console-service-health') return '运行状态';
   return AI_CONSOLE_PAGES.find(item => item.navKey === page)?.label ?? null;
 }
 

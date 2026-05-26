@@ -76,11 +76,11 @@ export function ScenarioModelConfigPage({
 
   return (
     <div className="space-y-4">
-      <PageHeader title="场景策略" />
+      <PageHeader title="AI 场景策略" />
 
       <div className="flex gap-2 flex-wrap">
         {([
-          ['scenario', '场景策略'],
+          ['scenario', 'AI 场景策略'],
           ['nodes', '能力节点'],
         ] as const).map(([key, label]) => (
           <Button key={key} variant={activeTab === key ? 'primary' : 'secondary'} size="sm" onClick={() => onTabChange(key)}>

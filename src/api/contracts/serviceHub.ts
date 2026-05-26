@@ -11,8 +11,10 @@ import type {
   IngestionJob,
   InsightsSnapshot,
   FAQ,
+  GlobalOperationLogEntry,
   KnowledgeDocument,
   ListQuery,
+  OperationLogFilters,
   PipelineNodeModelConfig,
   Order,
   OrderFilters,
@@ -29,6 +31,9 @@ import type {
   ReviewDecision,
   ScenarioModelConfig,
   SendGuardrailResult,
+  ServiceHealthCheckResult,
+  ServiceHealthError,
+  ServiceHealthSnapshot,
   ServiceHubSnapshot,
   ServiceTicket,
   TicketFilters,
@@ -141,6 +146,19 @@ export interface RagTestRunResult {
   guardrailCheck: GuardrailCheckResult;
 }
 
+export interface ServiceHealthSnapshotResult {
+  snapshot: ServiceHubSnapshot;
+  serviceHealth: ServiceHealthSnapshot;
+}
+
+export interface RetryFailedJobsResult extends ServiceHealthSnapshotResult {
+  retriedJobs: string[];
+}
+
+export interface RebuildVectorIndexResult extends ServiceHealthSnapshotResult {
+  message: string;
+}
+
 export interface ServiceHubApi {
   getSnapshot(): Promise<ServiceHubSnapshot>;
   getCustomers(query: ListQuery<CustomerFilters>): Promise<PagedResult<CustomerProfile>>;
@@ -149,6 +167,7 @@ export interface ServiceHubApi {
   getTicket(id: string): Promise<ServiceTicket | undefined>;
   getOrders(query: ListQuery<OrderFilters>): Promise<PagedResult<Order>>;
   getTasks(query: ListQuery<TaskFilters>): Promise<PagedResult<FollowUpTask>>;
+  getOperationLogs(query: ListQuery<OperationLogFilters>): Promise<PagedResult<GlobalOperationLogEntry>>;
   retrieveTicket(request: TicketRetrieveRequest): Promise<{ snapshot: ServiceHubSnapshot; ragRun: RagRun | undefined }>;
   draftTicket(request: TicketDraftRequest): Promise<{ snapshot: ServiceHubSnapshot; draft: ReplyDraft | undefined }>;
   sendTicketReply(request: TicketReplySendRequest): Promise<TicketReplySendResult>;
@@ -171,6 +190,11 @@ export interface ServiceHubApi {
   getRagRuns(query: ListQuery<RagRunFilters>): Promise<PagedResult<RagRun>>;
   getRagRun(id: string): Promise<RagRun | undefined>;
   runRagTest(request: RunRagTestRequest): Promise<RagTestRunResult>;
+  refreshServiceHealth(): Promise<ServiceHealthSnapshotResult>;
+  runServiceHealthCheck(): Promise<{ snapshot: ServiceHubSnapshot; result: ServiceHealthCheckResult }>;
+  retryFailedIngestionJobs(): Promise<RetryFailedJobsResult>;
+  rebuildVectorIndex(): Promise<RebuildVectorIndexResult>;
+  getServiceHealthLastError(id?: string): Promise<ServiceHealthError | undefined>;
   getEvaluations(): Promise<EvaluationRecord[]>;
   getAIConsoleSnapshot(): Promise<AIConsoleSnapshot>;
   getInsightsSnapshot(): Promise<InsightsSnapshot>;

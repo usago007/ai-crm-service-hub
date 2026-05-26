@@ -15,6 +15,7 @@ import type {
   KnowledgeWizardStep,
   ListQuery,
   NavKey,
+  OperationLogFilters,
   OrderFilters,
   OverviewEventItem,
   OverviewMetric,
@@ -185,6 +186,7 @@ export function useServiceHubApp() {
   const [ticketQuery, setTicketQuery] = useState<ListQuery<TicketFilters>>({ page: 1, pageSize: 10, sortBy: 'lastUpdated', sortOrder: 'desc', search: '', filters: {} });
   const [orderQuery, setOrderQuery] = useState<ListQuery<OrderFilters>>({ page: 1, pageSize: 10, sortBy: 'date', sortOrder: 'desc', search: '', filters: {} });
   const [taskQuery, setTaskQuery] = useState<ListQuery<TaskFilters>>({ page: 1, pageSize: 10, sortBy: 'due', sortOrder: 'asc', search: '', filters: {} });
+  const [operationLogQuery, setOperationLogQuery] = useState<ListQuery<OperationLogFilters>>({ page: 1, pageSize: 10, sortBy: 'timestampLabel', sortOrder: 'desc', search: '', filters: {} });
   const [documentQuery, setDocumentQuery] = useState<ListQuery<DocumentFilters>>({ page: 1, pageSize: 8, sortBy: 'scenario', sortOrder: 'asc', search: '', filters: {} });
   const [ragRunQuery, setRagRunQuery] = useState<ListQuery<RagRunFilters>>({ page: 1, pageSize: 8, sortBy: 'createdAt', sortOrder: 'desc', search: '', filters: {} });
 
@@ -192,6 +194,7 @@ export function useServiceHubApp() {
   const [ticketResult, setTicketResult] = useState<PagedResult<ServiceTicket>>(emptyPaged(10));
   const [orderResult, setOrderResult] = useState<PagedResult<ServiceHubSnapshot['orders'][number]>>(emptyPaged(10));
   const [taskResult, setTaskResult] = useState<PagedResult<ServiceHubSnapshot['tasks'][number]>>(emptyPaged(10));
+  const [operationLogResult, setOperationLogResult] = useState<PagedResult<ServiceHubSnapshot['operationLogs'][number]>>(emptyPaged(10));
   const [documentResult, setDocumentResult] = useState<PagedResult<ServiceHubSnapshot['knowledgeDocuments'][number]>>(emptyPaged(8));
   const [ragRunResult, setRagRunResult] = useState<PagedResult<ServiceHubSnapshot['ragRuns'][number]>>(emptyPaged(8));
   const [faqList, setFaqList] = useState<FAQ[]>([]);
@@ -411,6 +414,10 @@ export function useServiceHubApp() {
   }, [api, taskQuery, globalSearch]);
 
   useEffect(() => {
+    void api.getOperationLogs({ ...operationLogQuery, search: operationLogQuery.search || globalSearch }).then(setOperationLogResult);
+  }, [api, operationLogQuery, globalSearch]);
+
+  useEffect(() => {
     void api.getKnowledgeDocuments({ ...documentQuery, search: documentQuery.search || globalSearch }).then(setDocumentResult);
   }, [api, documentQuery, globalSearch]);
 
@@ -472,6 +479,7 @@ export function useServiceHubApp() {
     jobs: snapshot.ingestionJobs,
     feedbackLoop: snapshot.feedbackLoop,
     auditLogs: snapshot.auditLogs,
+    serviceHealth: snapshot.serviceHealth,
   };
 
   async function createKnowledgeDocumentFlow(payload: Parameters<typeof api.createKnowledgeDocument>[0]) {
@@ -621,6 +629,11 @@ export function useServiceHubApp() {
       setCurrentPage('ai-console-evaluation-feedback');
       return;
     }
+    if (page === 'ai-console-service-health') {
+      setAIConsolePage('service-health');
+      setCurrentPage('ai-console-service-health');
+      return;
+    }
     if (page === 'ai-console-audit-logs') {
       setAIConsolePage('evaluation-feedback');
       setEvaluationCenterTab('audit');
@@ -714,6 +727,9 @@ export function useServiceHubApp() {
     taskQuery,
     setTaskQuery,
     taskResult,
+    operationLogQuery,
+    setOperationLogQuery,
+    operationLogResult,
     documentQuery,
     setDocumentQuery,
     documentResult,
@@ -877,6 +893,31 @@ export function useServiceHubApp() {
       const result = await refreshWith(api.runRagTest(payload));
       pushToast('已完成 RAG 调试运行', 'success');
       return result;
+    },
+    async refreshServiceHealth() {
+      const result = await refreshWith(api.refreshServiceHealth());
+      pushToast('已刷新运行状态', 'info');
+      return result.serviceHealth;
+    },
+    async runServiceHealthCheck() {
+      const result = await refreshWith(api.runServiceHealthCheck());
+      pushToast('已完成健康检查', 'success');
+      return result.result;
+    },
+    async retryFailedJobs() {
+      const result = await refreshWith(api.retryFailedIngestionJobs());
+      pushToast(result.retriedJobs.length > 0 ? `已重试 ${result.retriedJobs.length} 个失败任务` : '当前没有失败任务需要重试', result.retriedJobs.length > 0 ? 'success' : 'info');
+      return { retriedJobs: result.retriedJobs };
+    },
+    async rebuildVectorIndex() {
+      const result = await refreshWith(api.rebuildVectorIndex());
+      pushToast(result.message, 'info');
+      return { message: result.message };
+    },
+    async viewServiceHealthLastError(id?: string) {
+      const error = await api.getServiceHealthLastError(id);
+      pushToast(error ? `${error.source}: ${error.message}` : '当前没有可查看的错误', error ? 'warning' : 'info');
+      return error;
     },
     toggleCapability(id: string) {
       const nodeIdByCapability: Record<string, string> = {
