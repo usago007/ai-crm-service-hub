@@ -38,6 +38,7 @@ interface KnowledgeBaseProps {
   onUpdateKnowledgeBaseOverrides: (id: string, configOverrides: KnowledgeBaseRecord['configOverrides']) => void;
   onArchiveKnowledgeBase: (id: string) => void;
   onCloneKnowledgeBase: (id: string) => void;
+  onNavigateToRagTestLab: () => void;
   onOpenKnowledgeBase: (id: string) => void;
   onBackToKnowledgeList: () => void;
   onKnowledgeDetailTabChange: (tab: KnowledgeDetailTab) => void;
@@ -113,6 +114,7 @@ export function KnowledgeBase({
   onUpdateKnowledgeBaseOverrides,
   onArchiveKnowledgeBase,
   onCloneKnowledgeBase,
+  onNavigateToRagTestLab,
   onOpenKnowledgeBase,
   onBackToKnowledgeList,
   onKnowledgeDetailTabChange,
@@ -201,12 +203,21 @@ export function KnowledgeBase({
 
   const latestRetrievalRuns = useMemo(() => {
     if (!selectedKnowledgeBase) return [];
-    return ragTestRuns.filter(item => selectedKnowledgeBase.tags.some(tag => item.scenario.includes(tag) || displayScenario(item.scenario) === tag)).slice(0, 3);
-  }, [ragTestRuns, selectedKnowledgeBase]);
+    const kbDocNames = new Set(
+      knowledgeDocuments
+        .filter(d => selectedKnowledgeBase.documentIds.includes(d.id))
+        .map(d => d.name)
+    );
+    return ragTestRuns
+      .filter(run => run.retrievedChunks.some(chunk => kbDocNames.has(chunk.source)))
+      .slice(0, 5);
+  }, [ragTestRuns, selectedKnowledgeBase, knowledgeDocuments]);
+
+  const [showAllRetrievalRuns, setShowAllRetrievalRuns] = useState(false);
 
   const pipelineJobs = useMemo(() => {
     if (!selectedKnowledgeBase) return [];
-    return jobs.filter(job => selectedKnowledgeBase.documentIds.some(id => job.documentName.includes(id) || selectedKnowledgeBase.documentIds.includes(job.documentId ?? ''))).slice(0, 4);
+    return jobs.filter(job => selectedKnowledgeBase.documentIds.includes(job.documentId ?? '')).slice(0, 4);
   }, [jobs, selectedKnowledgeBase]);
 
   const documentTags = useMemo(() => {
@@ -512,7 +523,7 @@ export function KnowledgeBase({
           <div className="rounded-[18px] border border-[var(--color-border)] bg-white p-4">
             <div className="text-sm font-semibold mb-3">接入文档台账</div>
             <div className="space-y-3">
-              {ingestionOverview.documents.map(doc => (
+              {ingestionOverview.documents.slice(0, 10).map(doc => (
                 <div key={doc.id} className="rounded-[16px] border border-[var(--color-border-light)] bg-[var(--color-bg)] p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -530,6 +541,7 @@ export function KnowledgeBase({
                   <div className="mt-3 flex gap-2 flex-wrap">
                     <Button variant="ghost" size="sm" onClick={() => { void handleIngestionAction(doc.documentId, 'view_parsed_text'); }}>查看解析文本</Button>
                     <Button variant="ghost" size="sm" onClick={() => { void handleIngestionAction(doc.documentId, 'view_chunks'); }}>查看分块</Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setDocumentSearch(doc.documentName); onKnowledgeDetailTabChange('documents'); }}>查看文档</Button>
                     <Button variant="ghost" size="sm" onClick={() => { void handleIngestionAction(doc.documentId, 'rebuild_embedding'); }}>重建向量</Button>
                     <Button variant="ghost" size="sm" onClick={() => { void handleIngestionAction(doc.documentId, 'publish'); }}>发布</Button>
                     <Button variant="ghost" size="sm" onClick={() => { void handleIngestionAction(doc.documentId, 'disable'); }}>禁用</Button>
@@ -537,6 +549,11 @@ export function KnowledgeBase({
                 </div>
               ))}
               {ingestionOverview.documents.length === 0 ? <EmptyState title="当前知识库还没有接入文档" compact /> : null}
+              {ingestionOverview.documents.length > 10 ? (
+                <div className="text-xs text-[var(--color-text-secondary)] text-center mt-3 pt-2 border-t border-[var(--color-border-light)]">
+                  共 {ingestionOverview.documents.length} 条，显示前 10 条
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -545,21 +562,33 @@ export function KnowledgeBase({
   }
 
   function renderPipelineTab() {
+    const overrides = selectedKnowledgeBase?.configOverrides;
+    const effStrategy: RagConfigSnapshot['chunking']['strategy'] = (overrides?.chunking?.strategy as RagConfigSnapshot['chunking']['strategy'] | undefined) ?? ragConfig.chunking.strategy;
+    const effChunkSize = overrides?.chunking?.chunkSize ?? ragConfig.chunking.chunkSize;
+    const effOverlap = overrides?.chunking?.chunkOverlap ?? ragConfig.chunking.chunkOverlap;
+    const effTopK = overrides?.retrieval?.topK ?? ragConfig.retrieval.topK;
+    const effThreshold = overrides?.retrieval?.similarityThreshold ?? ragConfig.retrieval.similarityThreshold;
+    const effReranker = ragConfig.retrieval.rerankerEnabled;
+    const hasOverrides = overrides?.chunking || overrides?.retrieval;
+
     return (
       <div className="space-y-4">
         <div>
           <div className="text-xl font-semibold">流水线</div>
+          {hasOverrides ? <div className="text-xs text-[var(--color-warning)] mt-1">当前知识库已设置配置覆盖，以下为实际生效值。</div> : null}
         </div>
         <div className="grid grid-cols-3 gap-3 max-[1100px]:grid-cols-1">
           <div className="rounded-[18px] border border-[var(--color-border)] bg-white p-4">
             <div className="text-xs text-[var(--color-text-secondary)] mb-1">当前分段策略</div>
-            <div className="text-lg font-semibold">{strategyLabel(ragConfig.chunking.strategy)}</div>
-            <div className="text-xs text-[var(--color-text-light)] mt-2">Chunk Size {ragConfig.chunking.chunkSize} · Overlap {ragConfig.chunking.chunkOverlap}</div>
+            <div className="text-lg font-semibold">{strategyLabel(effStrategy)}</div>
+            <div className="text-xs text-[var(--color-text-light)] mt-2">Chunk Size {effChunkSize} · Overlap {effOverlap}</div>
+            {overrides?.chunking ? <Badge variant="yellow" className="mt-2">KB 已覆盖</Badge> : null}
           </div>
           <div className="rounded-[18px] border border-[var(--color-border)] bg-white p-4">
             <div className="text-xs text-[var(--color-text-secondary)] mb-1">索引模式</div>
-            <div className="text-lg font-semibold">{ragConfig.retrieval.rerankerEnabled ? '高质量检索' : '经济检索'}</div>
-            <div className="text-xs text-[var(--color-text-light)] mt-2">Top K {ragConfig.retrieval.topK} · Score 阈值 {ragConfig.retrieval.similarityThreshold}</div>
+            <div className="text-lg font-semibold">{effReranker ? '高质量检索' : '经济检索'}</div>
+            <div className="text-xs text-[var(--color-text-light)] mt-2">Top K {effTopK} · Score 阈值 {effThreshold}</div>
+            {overrides?.retrieval ? <Badge variant="yellow" className="mt-2">KB 已覆盖</Badge> : null}
           </div>
           <div className="rounded-[18px] border border-[var(--color-border)] bg-white p-4">
             <div className="text-xs text-[var(--color-text-secondary)] mb-1">Embedding 模型</div>
@@ -590,7 +619,7 @@ export function KnowledgeBase({
         <div>
           <div className="text-xl font-semibold">召回测试</div>
         </div>
-        {latestRetrievalRuns.length > 0 ? latestRetrievalRuns.map(run => {
+        {latestRetrievalRuns.length > 0 ? (showAllRetrievalRuns ? latestRetrievalRuns : latestRetrievalRuns.slice(0, 3)).map(run => {
           const expanded = retrievalExpandedRunId === run.id;
           return (
           <div key={run.id} className="rounded-[18px] border border-[var(--color-border)] bg-white p-5">
@@ -654,8 +683,15 @@ export function KnowledgeBase({
             ) : null}
           </div>
         )}) : (
-          <EmptyState title="暂无召回测试" description="还没有与当前知识库直接相关的召回测试记录。处理完成页会提供“去召回测试”入口。" compact />
+          <EmptyState title="暂无召回测试" description="还没有与当前知识库直接相关的召回测试记录。" compact action={<Button size="sm" variant="secondary" onClick={onNavigateToRagTestLab}>前往 RAG 调试台</Button>} />
         )}
+        {latestRetrievalRuns.length > 3 ? (
+          <div className="text-center">
+            <Button variant="ghost" size="sm" onClick={() => setShowAllRetrievalRuns(prev => !prev)}>
+              {showAllRetrievalRuns ? '收起' : `查看更多（共 ${latestRetrievalRuns.length} 条）`}
+            </Button>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -721,6 +757,7 @@ export function KnowledgeBase({
             </div>
             <div className="flex gap-2">
               <Button variant="secondary" size="sm" onClick={() => { setKbSettingsOverrides(overrides); setKbSettingsDirty(false); }}>恢复</Button>
+              <Button variant="secondary" size="sm" onClick={() => { setKbSettingsOverrides(undefined); setKbSettingsDirty(true); }}>清除覆盖</Button>
               <Button size="sm" disabled={!kbSettingsDirty} onClick={() => { if (selectedKnowledgeBase) { onUpdateKnowledgeBaseOverrides(selectedKnowledgeBase.id, activeOverrides); setKbSettingsDirty(false); } }}>保存覆盖</Button>
             </div>
           </div>
@@ -741,28 +778,28 @@ export function KnowledgeBase({
                 <span className="text-xs text-[var(--color-text-secondary)]">Chunk Size</span>
                 {isOverridden('chunkSize') ? <Badge variant="yellow">已覆盖</Badge> : <Badge variant="gray">继承全局</Badge>}
               </div>
-              <input type="number" className={inputCls} value={effectiveChunkSize} onChange={e => updateOverride('chunkSize', Number(e.target.value))} />
+              <input type="number" min="100" max="8000" className={inputCls} value={effectiveChunkSize} onChange={e => updateOverride('chunkSize', Number(e.target.value))} />
             </div>
             <div className="rounded-[14px] bg-[var(--color-bg)] px-4 py-3">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs text-[var(--color-text-secondary)]">Chunk Overlap</span>
                 {isOverridden('chunkOverlap') ? <Badge variant="yellow">已覆盖</Badge> : <Badge variant="gray">继承全局</Badge>}
               </div>
-              <input type="number" className={inputCls} value={effectiveChunkOverlap} onChange={e => updateOverride('chunkOverlap', Number(e.target.value))} />
+              <input type="number" min="0" max="8000" className={inputCls} value={effectiveChunkOverlap} onChange={e => updateOverride('chunkOverlap', Number(e.target.value))} />
             </div>
             <div className="rounded-[14px] bg-[var(--color-bg)] px-4 py-3">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs text-[var(--color-text-secondary)]">Top K</span>
                 {isOverridden('topK') ? <Badge variant="yellow">已覆盖</Badge> : <Badge variant="gray">继承全局</Badge>}
               </div>
-              <input type="number" className={inputCls} value={effectiveTopK} onChange={e => updateOverride('topK', Number(e.target.value))} />
+              <input type="number" min="1" max="20" className={inputCls} value={effectiveTopK} onChange={e => updateOverride('topK', Number(e.target.value))} />
             </div>
             <div className="rounded-[14px] bg-[var(--color-bg)] px-4 py-3">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs text-[var(--color-text-secondary)]">相似度阈值</span>
                 {isOverridden('threshold') ? <Badge variant="yellow">已覆盖</Badge> : <Badge variant="gray">继承全局</Badge>}
               </div>
-              <input type="number" step="0.01" className={inputCls} value={effectiveThreshold} onChange={e => updateOverride('threshold', Number(e.target.value))} />
+              <input type="number" min="0.1" max="1.0" step="0.01" className={inputCls} value={effectiveThreshold} onChange={e => updateOverride('threshold', Number(e.target.value))} />
             </div>
           </div>
         </div>

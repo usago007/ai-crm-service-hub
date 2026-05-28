@@ -176,6 +176,7 @@ export default function App() {
             onUpdateKnowledgeBaseOverrides={app.updateKnowledgeBaseOverrides}
             onArchiveKnowledgeBase={app.archiveKnowledgeBase}
             onCloneKnowledgeBase={app.cloneKnowledgeBase}
+            onNavigateToRagTestLab={() => { app.setCurrentPage('ai-console-rag-test-lab'); }}
             onOpenKnowledgeBase={app.openKnowledgeBase}
             onBackToKnowledgeList={app.backToKnowledgeList}
             onKnowledgeDetailTabChange={app.setKnowledgeDetailTab}
