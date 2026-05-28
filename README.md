@@ -1,16 +1,16 @@
 # AI CRM Service Hub
 
-工程化前端 CRM / 客服 / RAG 运维工作台。当前版本使用 `mock API + 结构化 fixture` 驱动，不接真实后端，但所有核心页面都已通过前端 API 契约工作，不再直接从页面读取散落的静态数组。
+Engineering frontend for CRM / Customer Service / RAG operations workbench. Driven by `mock API + structured fixtures` with no real backend. All core pages work through frontend API contracts instead of scattering static arrays.
 
 ## Current Shape
 
-- `RAG + AI Operations` 已重构为 mock 运维台，包含:
+- `RAG + AI Operations` refactored as mock operations console, including:
   - `Knowledge Registry`
   - `Ingestion Jobs`
   - `Retrieval Debugger`
   - `Prompt Assembly Inspector`
   - `Evaluation & Feedback`
-- `Customer Service` 与 `Tickets` 共用结构化 ticket workflow:
+- `Customer Service` and `Tickets` share a structured ticket workflow:
   - `triage`
   - `retrieve`
   - `draft`
@@ -18,7 +18,7 @@
   - `execute`
   - `follow-up`
   - `resolved`
-- `Customers / CRM` 已升级为服务决策输入层，包含:
+- `Customers / CRM` upgraded as service decision input layer, including:
   - segment
   - risk flags
   - complaint history
@@ -47,10 +47,10 @@ src/
 
 ## Mock Data Rules
 
-- mock 数据只能存在于 `src/mocks` 和 `src/api/adapters`
-- 页面不得直接 import `src/data/*.ts`
-- 所有交互必须经过 mock API contract
-- mock fixture 必须覆盖成功态、失败态、冲突态
+- Mock data must only exist in `src/mocks` and `src/api/adapters`
+- Pages must not directly import `src/data/*.ts`
+- All interaction must go through mock API contracts
+- Mock fixtures must cover success, failure, and conflict states
 
 ## Commands
 
@@ -63,5 +63,5 @@ npm run dev
 
 ## Notes
 
-- 仓库里保留了一些旧的 `src/data/*.ts` 和老组件，便于渐进迁移；运行主链已切换到新的 snapshot + mock API。
-- 当前仍是前端工程，不包含真实后端、向量库或模型调用；但接口契约和状态流已预留，便于后续接入真实服务。
+- Legacy `src/data/*.ts` and old components are preserved for incremental migration; the main runtime has switched to the new snapshot + mock API.
+- This is a frontend project only, with no real backend, vector store, or model inference; API contracts and state flows are pre-wired for future real service integration.
