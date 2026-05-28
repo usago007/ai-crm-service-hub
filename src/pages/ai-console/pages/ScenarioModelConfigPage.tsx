@@ -231,6 +231,7 @@ export function ScenarioModelConfigPage({
                   恢复当前版本
                 </Button>
                 <Button variant="secondary" size="sm" onClick={() => { const blob = new Blob([JSON.stringify(activeScenarioDraft, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `scenario-${activeScenarioDraft.scenario}-${new Date().toISOString().slice(0, 10)}.json`; a.click(); URL.revokeObjectURL(url); }}>导出</Button>
+                <Button variant="secondary" size="sm" onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.json'; input.onchange = (e) => { const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = (re) => { try { const parsed = JSON.parse(re.target?.result as string); if (parsed?.scenario && parsed?.primaryModel) { setScenarioDraft(parsed); setScenarioDirty(true); } } catch { /* ignore */ } }; reader.readAsText(file); }; input.click(); }}>导入</Button>
                 <Button size="sm" disabled={!scenarioDirty} onClick={() => { void onUpdateScenarioModelConfig(activeScenarioDraft); setScenarioDirty(false); }}>
                   保存场景策略
                 </Button>
@@ -247,10 +248,7 @@ export function ScenarioModelConfigPage({
                 <Field label="Temperature"><input type="number" step="0.05" className={inputCls} value={activeScenarioDraft.temperature} onChange={e => updateScenarioDraft(prev => ({ ...prev, temperature: Number(e.target.value) }))} /></Field>
                 <Field label="Top K"><input type="number" className={inputCls} value={activeScenarioDraft.topK} onChange={e => updateScenarioDraft(prev => ({ ...prev, topK: Number(e.target.value) }))} /></Field>
                 <Field label="相似度阈值"><input type="number" step="0.01" className={inputCls} value={activeScenarioDraft.similarityThreshold} onChange={e => updateScenarioDraft(prev => ({ ...prev, similarityThreshold: Number(e.target.value) }))} /></Field>
-                <Field label="敏感场景回退"><input className={inputCls} value={activeScenarioDraft.sensitiveCaseFallback} onChange={e => updateScenarioDraft(prev => ({ ...prev, sensitiveCaseFallback: e.target.value }))} /></Field>
-                <Field label="低置信度回退"><input className={inputCls} value={activeScenarioDraft.lowConfidenceFallback} onChange={e => updateScenarioDraft(prev => ({ ...prev, lowConfidenceFallback: e.target.value }))} /></Field>
-                <Field label="无命中回退"><input className={inputCls} value={activeScenarioDraft.noMatchFallback} onChange={e => updateScenarioDraft(prev => ({ ...prev, noMatchFallback: e.target.value }))} /></Field>
-                <Field label="输出预算"><input type="number" className={inputCls} value={activeScenarioDraft.maxOutputTokens} onChange={e => updateScenarioDraft(prev => ({ ...prev, maxOutputTokens: Number(e.target.value) }))} /></Field>
+                <Field label="输出预算"><input type="number" min="50" max="8000" className={inputCls} value={activeScenarioDraft.maxOutputTokens} onChange={e => updateScenarioDraft(prev => ({ ...prev, maxOutputTokens: Number(e.target.value) }))} /></Field>
               </div>
               <div className="grid grid-cols-3 gap-2 mt-3 max-[1000px]:grid-cols-1">
                 <Toggle label="AI 允许建议" on={activeScenarioDraft.aiSuggestAllowed} onClick={() => updateScenarioDraft(prev => ({ ...prev, aiSuggestAllowed: !prev.aiSuggestAllowed }))} />

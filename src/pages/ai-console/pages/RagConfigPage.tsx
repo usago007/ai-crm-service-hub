@@ -165,9 +165,6 @@ export function RagConfigPage({ ragConfig, onUpdateRagConfig, onOpenPage, effect
           <Field label="Top K"><input type="number" min="1" max="20" className={inputCls} value={activeDraft.retrieval.topK} onChange={e => mutate(cfg => { cfg.retrieval.topK = Number(e.target.value); })} /></Field>
           <Field label="相似度阈值"><input type="number" min="0.1" max="1.0" step="0.01" className={inputCls} value={activeDraft.retrieval.similarityThreshold} onChange={e => mutate(cfg => { cfg.retrieval.similarityThreshold = Number(e.target.value); })} /></Field>
           <Field label="元数据过滤"><textarea className={`${inputCls} h-20 py-2 resize-none text-xs`} value={activeDraft.retrieval.metadataFilters.join('\n')} onChange={e => mutate(cfg => { cfg.retrieval.metadataFilters = e.target.value.split('\n').map(s => s.trim()).filter(Boolean); })} placeholder="每行一个过滤字段，如：scenario, language, country" /></Field>
-          <Field label="无命中回退"><input className={inputCls} value={activeDraft.retrieval.noMatchFallback} onChange={e => mutate(cfg => { cfg.retrieval.noMatchFallback = e.target.value; })} /></Field>
-          <Field label="低置信度回退"><input className={inputCls} value={activeDraft.retrieval.lowConfidenceFallback} onChange={e => mutate(cfg => { cfg.retrieval.lowConfidenceFallback = e.target.value; })} /></Field>
-          <Field label="敏感场景回退"><input className={inputCls} value={activeDraft.retrieval.sensitiveCaseFallback} onChange={e => mutate(cfg => { cfg.retrieval.sensitiveCaseFallback = e.target.value; })} /></Field>
         </div>
         <div className="grid grid-cols-3 gap-2 mt-3 max-[1000px]:grid-cols-1">
           <Toggle label="启用重排序" on={activeDraft.retrieval.rerankerEnabled} onClick={() => mutate(cfg => { cfg.retrieval.rerankerEnabled = !cfg.retrieval.rerankerEnabled; })} />
