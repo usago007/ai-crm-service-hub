@@ -5,7 +5,7 @@ import { Toggle } from '../../../components/common/Toggle';
 import { EmptyState } from '../../../components/common/PageChrome';
 import type { AIConsoleProps } from '../types';
 import { languageOptions, scenarioOptions } from '../types';
-import { Field, InfoCard, PageHeader, PromptBlock, PromptListBlock, SectionCard } from '../shared';
+import { Field, InfoCard, PromptBlock, PromptListBlock, SectionCard } from '../shared';
 import { inputCls } from '../sharedUtils';
 import { displayIssueType, displayLanguage, displayRiskLevel, displayScenario } from '../../../utils/display';
 import type { RagTestRun } from '../../../types';
@@ -153,18 +153,31 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
 
   return (
     <div className="space-y-4">
-      <PageHeader title="RAG 调试台" />
-
-      {businessCase.ticket && businessCase.customer ? (
-        <SectionCard title="当前案例输入上下文">
-          <div className="grid grid-cols-4 gap-3 max-[1000px]:grid-cols-2 text-xs">
+      <div className="rounded-[24px] border border-[var(--color-border)] bg-[linear-gradient(180deg,#FFFFFF_0%,#FAFBFC_100%)] p-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0">
+            <div className="text-[20px] font-semibold tracking-[-0.02em]">RAG 调试台</div>
+            <div className="text-sm text-[var(--color-text-secondary)] mt-1 leading-6">
+              输入客户问题，模拟完整的检索→组装→护栏检查链路。用于验证知识和策略配置是否按预期工作。
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Toggle label="AB 对比" on={abMode} onClick={() => setAbMode(prev => !prev)} />
+          </div>
+        </div>
+        {businessCase.ticket && businessCase.customer ? (
+          <div className="mt-3 pt-3 border-t border-[var(--color-border-light)] grid grid-cols-4 gap-3 max-[1000px]:grid-cols-2 text-xs">
             <InfoCard label="工单" value={`${businessCase.ticket.id} / ${displayIssueType(businessCase.ticket.issueType)}`} />
             <InfoCard label="客户" value={`${businessCase.customer.name} / ${businessCase.customer.country}`} />
             <InfoCard label="订单" value={businessCase.order?.id ?? '未关联订单'} />
             <InfoCard label="历史检索" value={businessCase.ragRun?.createdAt ?? '尚未沉淀'} />
           </div>
-        </SectionCard>
-      ) : null}
+        ) : (
+          <div className="mt-3 pt-3 border-t border-[var(--color-border-light)] text-xs text-[var(--color-text-light)]">
+            提示：从客服工作台选择一个工单后，此处将显示该工单的客户与订单上下文，方便快速定位调试目标。
+          </div>
+        )}
+      </div>
 
       <SectionCard title="输入">
         <div className="grid grid-cols-2 gap-3 max-[1000px]:grid-cols-1">
@@ -209,8 +222,8 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
           </div>
         </div>
         <div className="mt-4 flex items-center gap-3 flex-wrap">
-          <Button size="sm" onClick={handleRun}>{abMode ? 'A/B 对比运行' : '运行本次调试'}</Button>
-          <Toggle label="A/B 对比" on={abMode} onClick={() => setAbMode(prev => !prev)} />
+          <Button size="sm" onClick={handleRun}>{abMode ? '执行 AB 对比' : '运行调试'}</Button>
+          <Button variant="secondary" size="sm" onClick={() => setTestForm({ customerQuestion: '', customerId: customers[0]?.id ?? '', scenario: 'Shipping', language: 'EN', relatedOrderId: '' })}>重置表单</Button>
           <div className="relative">
             <Button variant="secondary" size="sm" onClick={() => setShowPresets(prev => !prev)}>预设配置</Button>
             {showPresets ? (

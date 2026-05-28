@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Badge } from '../../../components/common/Badge';
 import { Button } from '../../../components/common/Button';
-import { DataTable, PageHeader } from '../shared';
+import { DataTable } from '../shared';
 import { inputCls } from '../sharedUtils';
 import type { AIConsoleProps } from '../types';
 import type { ServiceHealthStatus } from '../../../types';
@@ -187,14 +187,17 @@ export function ServiceHealthPage({
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="运行状态"
-        actions={(
-          <Button size="sm" variant="secondary" onClick={() => { void onRefreshServiceHealth(); }}>
-            刷新状态
-          </Button>
-        )}
-      />
+      <div className="rounded-[24px] border border-[var(--color-border)] bg-[linear-gradient(180deg,#FFFFFF_0%,#FAFBFC_100%)] p-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0">
+            <div className="text-[20px] font-semibold tracking-[-0.02em]">运行状态</div>
+            <div className="text-sm text-[var(--color-text-secondary)] mt-1 leading-6">
+              实时监控 LLM、Embedding、Vector DB 及文档接入队列的健康状况。异常指标将触发诊断建议。
+            </div>
+          </div>
+          <Button size="sm" variant="secondary" onClick={() => { void onRefreshServiceHealth(); }}>刷新状态</Button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-[1.35fr_0.9fr] gap-5 max-[1200px]:grid-cols-1">
         <section className="shell-card rounded-[32px] px-5 py-5 relative overflow-hidden">

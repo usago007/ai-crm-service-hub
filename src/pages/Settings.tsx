@@ -3,8 +3,10 @@ import type { Agent, PermissionBoundary, SettingsData } from '../types';
 import { Badge } from '../components/common/Badge';
 import { DataTable } from '../components/common/DataTable';
 import { Toggle } from '../components/common/Toggle';
-import { PanelCard, StatCard, SummaryHeader, inputCls } from '../components/common/PageChrome';
+import { PanelCard, StatCard } from '../components/common/PageChrome';
 import { useT, type Language } from '../i18n';
+import { inputCls } from './ai-console/sharedUtils';
+import { Bell, Globe, MessageSquare, Shield, Users } from 'lucide-react';
 
 interface SettingsProps {
   lang: Language;
@@ -14,7 +16,13 @@ interface SettingsProps {
   permissionBoundaries: PermissionBoundary[];
 }
 
-const tabs = ['general', 'team', 'permissions', 'channels', 'notifications'] as const;
+const tabs = [
+  { key: 'general', label: '通用', icon: Globe },
+  { key: 'team', label: '团队', icon: Users },
+  { key: 'permissions', label: '权限', icon: Shield },
+  { key: 'channels', label: '渠道', icon: MessageSquare },
+  { key: 'notifications', label: '通知', icon: Bell },
+] as const;
 
 const channelLabels: Record<string, string> = {
   liveChat: '在线聊天',
@@ -41,35 +49,40 @@ function boundaryBadge(value: string) {
 
 export function Settings({ lang, onLanguageChange, settings, agents, permissionBoundaries }: SettingsProps) {
   const { t } = useT();
-  const [tab, setTab] = useState<(typeof tabs)[number]>('general');
+  const [tab, setTab] = useState<string>('general');
   const manualReviewCount = permissionBoundaries.filter(item => item.manualReview !== 'No').length;
   const blockedSendCount = permissionBoundaries.filter(item => item.aiSend === 'No').length;
   const roleCount = settings.permissions.roleProfiles.length;
+  const activeTabItem = tabs.find(t => t.key === tab) ?? tabs[0];
 
   return (
     <div className="space-y-4">
-      <SummaryHeader
-        aside={
-          <div className="grid grid-cols-3 gap-3 max-[1100px]:grid-cols-1">
-            <StatCard label="语言环境" value={lang === 'zh' ? '中文' : lang} detail="后台操作语言与基础文案入口。" />
-            <StatCard label="团队席位" value={String(agents.length)} detail="当前可见的在线客服与管理成员。" />
-            <StatCard label="通知开关" value={String(Object.values(settings.notifications).filter(Boolean).length)} detail="已启用的提醒规则数量。" tone="warning" />
-          </div>
-        }
-      />
+      <div className="rounded-[24px] border border-[var(--color-border)] bg-[linear-gradient(180deg,#FFFFFF_0%,#FAFBFC_100%)] p-6">
+        <div className="text-[20px] font-semibold tracking-[-0.02em]">系统设置</div>
+        <div className="text-sm text-[var(--color-text-secondary)] mt-1 leading-6">管理团队、权限、渠道和通知偏好。所有更改即时生效。</div>
+        <div className="mt-4 grid grid-cols-3 gap-3 max-[1100px]:grid-cols-1">
+          <StatCard label="语言环境" value={lang === 'zh' ? '中文' : lang} detail="后台操作语言与基础文案" />
+          <StatCard label="团队席位" value={String(agents.length)} detail="当前可见的在线客服与管理成员" />
+          <StatCard label="已启用通知" value={String(Object.values(settings.notifications).filter(Boolean).length)} detail="激活中的提醒规则数量" tone="warning" />
+        </div>
+      </div>
 
-      <div className="grid grid-cols-[260px_minmax(0,1fr)] gap-5 max-[1100px]:grid-cols-1">
-        <PanelCard title="设置分组" className="p-3">
-          <div className="space-y-1">
-            {tabs.map(item => (
-              <button key={item} className={`w-full text-left px-3.5 py-3 rounded-[16px] text-[13px] transition-all duration-200 ${tab === item ? 'bg-[rgba(179,92,32,0.12)] text-[var(--color-primary)] font-medium shadow-[inset_0_0_0_1px_rgba(179,92,32,0.12)]' : 'text-[var(--color-text-secondary)] hover:bg-[rgba(30,38,47,0.05)]'}`} onClick={() => setTab(item)}>
-                {item === 'general' ? t.settings.general : item === 'team' ? t.settings.team : item === 'permissions' ? '权限管理' : item === 'channels' ? t.settings.channels : t.settings.notifications}
+      <div className="grid grid-cols-[240px_minmax(0,1fr)] gap-5 max-[1100px]:grid-cols-1">
+        <PanelCard className="p-2">
+          {tabs.map(item => {
+            const Icon = item.icon;
+            const active = tab === item.key;
+            return (
+              <button key={item.key}
+                className={`w-full flex items-center gap-2.5 px-3.5 py-3 rounded-[14px] text-[13px] transition-all duration-200 ${active ? 'bg-[rgba(179,92,32,0.12)] text-[var(--color-primary)] font-medium' : 'text-[var(--color-text-secondary)] hover:bg-[rgba(30,38,47,0.05)]'}`}
+                onClick={() => setTab(item.key)}>
+                <Icon size={15} />{item.label}
               </button>
-            ))}
-          </div>
+            );
+          })}
         </PanelCard>
 
-        <PanelCard title={tab === 'general' ? t.settings.general : tab === 'team' ? t.settings.team : tab === 'permissions' ? '权限管理' : tab === 'channels' ? t.settings.channels : t.settings.notifications}>
+        <PanelCard title={activeTabItem.label}>
           {tab === 'general' ? (
             <div className="space-y-5">
               <div>
@@ -206,17 +219,19 @@ export function Settings({ lang, onLanguageChange, settings, agents, permissionB
 
           {tab === 'channels' ? (
             <div>
-              {Object.entries(settings.channels).map(([key, value]) => (
-                <Toggle key={key} label={channelLabels[key] ?? key} on={value} onClick={() => {}} />
+              {Object.entries(settings.channels).map(([key, _value]) => (
+                <Toggle key={key} label={channelLabels[key] ?? key} on={_value} onClick={() => { /* 当前为只读快照，编辑功能待后续接入 */ }} />
               ))}
+              <div className="text-xs text-[var(--color-text-light)] mt-4">渠道开关当前为只读快照，编辑功能将在后续版本接入。</div>
             </div>
           ) : null}
 
           {tab === 'notifications' ? (
             <div>
-              {Object.entries(settings.notifications).map(([key, value]) => (
-                <Toggle key={key} label={notificationLabels[key] ?? key} on={value} onClick={() => {}} />
+              {Object.entries(settings.notifications).map(([key, _value]) => (
+                <Toggle key={key} label={notificationLabels[key] ?? key} on={_value} onClick={() => { /* 当前为只读快照 */ }} />
               ))}
+              <div className="text-xs text-[var(--color-text-light)] mt-4">通知开关当前为只读快照，编辑功能将在后续版本接入。</div>
             </div>
           ) : null}
         </PanelCard>

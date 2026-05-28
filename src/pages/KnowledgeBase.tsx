@@ -3,7 +3,7 @@ import { ChevronLeft } from 'lucide-react';
 import { Badge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
 import { Modal } from '../components/common/Modal';
-import { EmptyState, FilterBar, PanelCard, StatCard, SummaryHeader } from '../components/common/PageChrome';
+import { EmptyState, FilterBar, PanelCard, StatCard } from '../components/common/PageChrome';
 import type {
   IngestionDocumentRecord,
   KnowledgeBaseRecord,
@@ -17,6 +17,7 @@ import type {
   RagTestRun,
 } from '../types';
 import { displayLanguage, displayRiskLevel, displayScenario } from '../utils/display';
+import { scenarioOptions } from './ai-console/types';
 import { displayStageStatus, inputCls, stageVariant } from './ai-console/sharedUtils';
 
 interface KnowledgeBaseProps {
@@ -311,15 +312,17 @@ export function KnowledgeBase({
     return (
       <>
       <div className="space-y-5">
-        <SummaryHeader
-          aside={
-            <div className="grid grid-cols-3 gap-3 max-[980px]:grid-cols-1">
-              <StatCard label="知识库总量" value={String(knowledgeBases.length)} detail="" />
-              <StatCard label="活动文档" value={String(activeDocCount)} detail="" />
-              <StatCard label="同步中" value={String(syncingCount)} detail="" tone="warning" />
-            </div>
-          }
-        />
+        <div className="rounded-[24px] border border-[var(--color-border)] bg-[linear-gradient(180deg,#FFFFFF_0%,#FAFBFC_100%)] p-6">
+          <div className="text-[20px] font-semibold tracking-[-0.02em]">AI 知识库</div>
+          <div className="text-sm text-[var(--color-text-secondary)] mt-1 leading-6">
+            管理知识资产：创建知识库、导入文档、配置检索策略。文档经过解析→切片→向量化→索引后即可参与 RAG 检索。
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-3 max-[980px]:grid-cols-1">
+            <StatCard label="知识库总量" value={String(knowledgeBases.length)} detail="" />
+            <StatCard label="活动文档" value={String(activeDocCount)} detail="" />
+            <StatCard label="同步中" value={String(syncingCount)} detail="" tone="warning" />
+          </div>
+        </div>
 
         <FilterBar>
           <select className={inputCls} value={tagFilter} onChange={event => setTagFilter(event.target.value)}>
@@ -824,16 +827,23 @@ export function KnowledgeBase({
 
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-4 flex-wrap rounded-[20px] border border-[var(--color-border)] bg-[rgba(255,255,255,0.62)] px-5 py-4">
-          <div className="min-w-0 flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={onBackToKnowledgeList}>返回</Button>
-            <div className="min-w-0 text-[24px] leading-none font-semibold tracking-[-0.03em] text-[var(--color-text)] truncate">
-              {selectedKnowledgeBase.name}
+        <div className="rounded-[24px] border border-[var(--color-border)] bg-[linear-gradient(180deg,#FFFFFF_0%,#FAFBFC_100%)] p-6">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="min-w-0 flex items-center gap-3">
+              <Button variant="ghost" size="sm" onClick={onBackToKnowledgeList}>返回</Button>
+              <div>
+                <div className="text-[20px] font-semibold tracking-[-0.02em]">{selectedKnowledgeBase.name}</div>
+                <div className="text-sm text-[var(--color-text-secondary)] mt-1">{selectedKnowledgeBase.description}</div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => { setEditMetaName(selectedKnowledgeBase.name); setEditMetaDesc(selectedKnowledgeBase.description); setEditMetaTags(selectedKnowledgeBase.tags.join(', ')); setEditMetaOwner(selectedKnowledgeBase.owner); setEditMetaModalOpen(true); }}>编辑</Button>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => { setEditMetaName(selectedKnowledgeBase.name); setEditMetaDesc(selectedKnowledgeBase.description); setEditMetaTags(selectedKnowledgeBase.tags.join(', ')); setEditMetaOwner(selectedKnowledgeBase.owner); setEditMetaModalOpen(true); }}>编辑</Button>
+            <div className="flex gap-2 flex-shrink-0">
+              <Button variant="secondary" size="sm" onClick={() => onArchiveKnowledgeBase(selectedKnowledgeBase.id)}>归档</Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm" onClick={() => onArchiveKnowledgeBase(selectedKnowledgeBase.id)}>归档</Button>
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
+            {selectedKnowledgeBase.tags.map(tag => <Badge key={tag} variant="gray">{tag}</Badge>)}
+            <span className="text-xs text-[var(--color-text-light)]">· {selectedKnowledgeBase.owner} · {selectedKnowledgeBase.documentCount} 个文档 · 更新于 {selectedKnowledgeBase.updatedAt}</span>
           </div>
         </div>
 
@@ -1062,7 +1072,9 @@ export function KnowledgeBase({
                     </div>
                     <div>
                       <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">场景</label>
-                      <input className={inputCls} value={displayScenario(knowledgeWizardDraft.scenario)} readOnly />
+                      <select className={inputCls} value={knowledgeWizardDraft.scenario} onChange={event => onKnowledgeWizardDraftChange(prev => ({ ...prev, scenario: event.target.value }))}>
+                        {scenarioOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
                     </div>
                     <div>
                       <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">知识类型</label>
