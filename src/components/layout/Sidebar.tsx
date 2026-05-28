@@ -59,7 +59,6 @@ export function Sidebar({ collapsed, currentPage, tickets, tasks, onNavigate, on
       label: '系统',
       items: [
         { key: 'admin-general' as NavKey, label: '通用设置', icon: Settings, count: undefined },
-        { key: 'admin-team' as NavKey, label: '团队管理', icon: Users, count: undefined },
         { key: 'admin-permissions' as NavKey, label: '权限管理', icon: Shield, count: undefined },
         { key: 'admin-channels' as NavKey, label: '渠道设置', icon: MessageSquare, count: undefined },
         { key: 'admin-notifications' as NavKey, label: '通知设置', icon: Bell, count: undefined },

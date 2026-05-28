@@ -17,7 +17,6 @@ export type NavKey =
   | 'tasks'
   | 'admin-settings'
   | 'admin-general'
-  | 'admin-team'
   | 'admin-permissions'
   | 'admin-channels'
   | 'admin-notifications';

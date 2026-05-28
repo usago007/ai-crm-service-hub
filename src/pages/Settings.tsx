@@ -8,7 +8,7 @@ import { Toggle } from '../components/common/Toggle';
 import { PanelCard, StatCard } from '../components/common/PageChrome';
 import { useT, type Language } from '../i18n';
 import { inputCls } from './ai-console/sharedUtils';
-import { Bell, Globe, MessageSquare, Shield, Users } from 'lucide-react';
+import { Bell, Globe, MessageSquare, Shield } from 'lucide-react';
 
 interface SettingsProps {
   lang: Language;
@@ -21,7 +21,6 @@ interface SettingsProps {
 
 const tabs = [
   { key: 'general', label: '通用', icon: Globe },
-  { key: 'team', label: '团队', icon: Users },
   { key: 'permissions', label: '权限', icon: Shield },
   { key: 'channels', label: '渠道', icon: MessageSquare },
   { key: 'notifications', label: '通知', icon: Bell },
@@ -62,9 +61,7 @@ function renderTabContent(tab: string, lang: Language, onLanguageChange: (l: Lan
     </div>
   );
 
-  if (tab === 'team') return <TeamManagement agents={agents} />;
-
-  if (tab === 'permissions') return (
+  if (tab === 'permissions') return <PermissionsAndTeam settings={settings} agents={agents} />;
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 max-[900px]:grid-cols-1">
         <StatCard label="角色数" value={String(roleCount)} detail="当前定义的权限角色模版。" />
@@ -130,38 +127,83 @@ function renderTabContent(tab: string, lang: Language, onLanguageChange: (l: Lan
   );
 }
 
-function TeamManagement({ agents: initialAgents }: { agents: Agent[] }) {
+function PermissionsAndTeam({ settings, agents: initialAgents }: { settings: SettingsData; agents: Agent[] }) {
   const [members, setMembers] = useState(initialAgents);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingRole, setEditingRole] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState('客服专员');
   useEffect(() => { setMembers(initialAgents); }, [initialAgents]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="text-xs text-[var(--color-text-secondary)]">共 {members.length} 名成员</div>
-        <Button size="sm" onClick={() => { setNewName(''); setNewRole('客服专员'); setShowAdd(true); }}>添加成员</Button>
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 max-[900px]:grid-cols-1">
+        <StatCard label="角色模版" value={String(settings.permissions.roleProfiles.length)} detail="当前定义的权限角色。" />
+        <StatCard label="团队成员" value={String(members.length)} detail="均继承对应角色权限。" />
       </div>
-      <DataTable columns={[
-        { key: 'name', label: '姓名' },
-        { key: 'role', label: '角色' },
-        { key: 'status', label: '状态' },
-        { key: 'actions', label: '操作', width: '80px' },
-      ]} emptyMessage="当前没有团队成员。" className="rounded-[20px]">
-        {members.map((agent, i) => (
-          <tr key={agent.name}>
-            <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] font-medium">{agent.name}</td>
-            <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{agent.role}</td>
-            <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant="green">在线</Badge></td>
-            <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">
-              <Button variant="ghost" size="sm" onClick={() => setMembers(prev => prev.filter((_, j) => j !== i))}>移除</Button>
-            </td>
-          </tr>
-        ))}
-      </DataTable>
+
+      <PanelCard title="角色定义" description="每个角色预设了一组 AI 操作权限。成员分配角色后自动继承这些权限。">
+        <DataTable columns={[
+          { key: 'role', label: '角色', width: '16%' },
+          { key: 'scope', label: '职责范围', width: '22%' },
+          { key: 'suggest', label: 'AI 建议' },
+          { key: 'send', label: '发送' },
+          { key: 'review', label: '复核' },
+          { key: 'knowledge', label: '知识访问', width: '12%' },
+        ]} emptyMessage="暂无角色定义。" className="rounded-[20px]">
+          {settings.permissions.roleProfiles.map(profile => (
+            <tr key={profile.role}>
+              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] font-medium">{profile.role}</td>
+              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] text-[var(--color-text-secondary)]">{profile.scopeSummary}</td>
+              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{profile.aiSuggest}</td>
+              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{profile.humanSend}</td>
+              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{profile.manualReviewOverride}</td>
+              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{profile.knowledgeAccess}</td>
+            </tr>
+          ))}
+        </DataTable>
+      </PanelCard>
+
+      <PanelCard title="成员分配" description="每位成员分配一个角色，继承该角色的权限。可随时调整角色。">
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <div className="text-xs text-[var(--color-text-secondary)]">共 {members.length} 人</div>
+          <Button size="sm" onClick={() => { setNewName(''); setNewRole('客服专员'); setShowAdd(true); }}>添加成员</Button>
+        </div>
+        <DataTable columns={[
+          { key: 'name', label: '姓名', width: '18%' },
+          { key: 'role', label: '角色', width: '18%' },
+          { key: 'status', label: '状态', width: '12%' },
+          { key: 'actions', label: '操作', width: '120px' },
+        ]} emptyMessage="暂无成员。" className="rounded-[20px]">
+          {members.map((agent, i) => (
+            <tr key={agent.name}>
+              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] font-medium">{agent.name}</td>
+              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">
+                {editingRole === agent.name ? (
+                  <select className={`${inputCls} h-8 text-xs`} value={agent.role} onChange={e => {
+                    setMembers(prev => prev.map((m, j) => j === i ? { ...m, role: e.target.value } : m));
+                    setEditingRole(null);
+                  }} autoFocus onBlur={() => setEditingRole(null)}>
+                    {settings.permissions.roleProfiles.map(rp => <option key={rp.role} value={rp.role}>{rp.role}</option>)}
+                  </select>
+                ) : (
+                  <button type="button" className="text-[var(--color-primary)] hover:underline" onClick={() => setEditingRole(agent.name)}>{agent.role}</button>
+                )}
+              </td>
+              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant="green">在线</Badge></td>
+              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => setEditingRole(agent.name)}>改角色</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setMembers(prev => prev.filter((_, j) => j !== i))}>移除</Button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </DataTable>
+      </PanelCard>
+
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="添加成员" actions={
-        <Button size="sm" onClick={() => { if (newName.trim()) { setMembers(prev => [...prev, { name: newName.trim(), role: newRole }]); setShowAdd(false); } }} disabled={!newName.trim()}>确认</Button>
+        <Button size="sm" onClick={() => { if (newName.trim()) { setMembers(prev => [...prev, { name: newName.trim(), role: newRole }]); setShowAdd(false); } }} disabled={!newName.trim()}>确认添加</Button>
       }>
         <div className="space-y-4">
           <div>
@@ -171,11 +213,7 @@ function TeamManagement({ agents: initialAgents }: { agents: Agent[] }) {
           <div>
             <div className="text-xs text-[var(--color-text-secondary)] mb-1">角色</div>
             <select className={inputCls} value={newRole} onChange={e => setNewRole(e.target.value)}>
-              <option>客服专员</option>
-              <option>高级客服</option>
-              <option>团队负责人</option>
-              <option>知识运营</option>
-              <option>管理员</option>
+              {settings.permissions.roleProfiles.map(rp => <option key={rp.role} value={rp.role}>{rp.role}</option>)}
             </select>
           </div>
         </div>
@@ -199,7 +237,7 @@ export function Settings({ lang, onLanguageChange, settings, agents, permissionB
             <div className="min-w-0">
               <div className="text-[20px] font-semibold tracking-[-0.02em]">{activeTabItem.label}</div>
               <div className="text-sm text-[var(--color-text-secondary)] mt-1 leading-6">
-                {tab === 'general' ? '配置语言环境、时区和通知偏好。' : tab === 'team' ? '查看和管理团队成员与角色。' : tab === 'permissions' ? '管理角色权限和场景级 AI 操作边界。' : tab === 'channels' ? '启用或禁用客户服务渠道。' : '管理消息提醒规则和通知偏好。'}
+                {tab === 'general' ? '配置语言环境、时区和通知偏好。' : tab === 'permissions' ? '管理角色权限与团队成员分配。' : tab === 'channels' ? '启用或禁用客户服务渠道。' : '管理消息提醒规则和通知偏好。'}
               </div>
             </div>
           </div>
