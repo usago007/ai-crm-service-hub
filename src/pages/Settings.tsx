@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import type { Agent, PermissionBoundary, SettingsData } from '../types';
+import type { Agent, SettingsData } from '../types';
 import { Badge } from '../components/common/Badge';
+import { Button } from '../components/common/Button';
 import { DataTable } from '../components/common/DataTable';
+import { Modal } from '../components/common/Modal';
 import { Toggle } from '../components/common/Toggle';
 import { PanelCard, StatCard } from '../components/common/PageChrome';
 import { useT, type Language } from '../i18n';
@@ -41,16 +43,7 @@ const notificationLabels: Record<string, string> = {
   reviewRequired: '人工复核提醒',
 };
 
-function boundaryBadge(value: string) {
-  if (value === 'Yes') return { label: '允许', variant: 'green' as const };
-  if (value === 'No') return { label: '禁止', variant: 'red' as const };
-  if (value === 'Conditional') return { label: '条件触发', variant: 'yellow' as const };
-  return { label: value, variant: 'gray' as const };
-}
-
-function renderTabContent(tab: string, lang: Language, onLanguageChange: (l: Language) => void, settings: SettingsData, agents: Agent[], permissionBoundaries: PermissionBoundary[], t: ReturnType<typeof useT>['t']) {
-  const manualReviewCount = permissionBoundaries.filter(item => item.manualReview !== 'No').length;
-  const blockedSendCount = permissionBoundaries.filter(item => item.aiSend === 'No').length;
+function renderTabContent(tab: string, lang: Language, onLanguageChange: (l: Language) => void, settings: SettingsData, agents: Agent[], t: ReturnType<typeof useT>['t']) {
   const roleCount = settings.permissions.roleProfiles.length;
 
   if (tab === 'general') return (
@@ -69,82 +62,50 @@ function renderTabContent(tab: string, lang: Language, onLanguageChange: (l: Lan
     </div>
   );
 
-  if (tab === 'team') return (
-    <DataTable columns={[{ key: 'name', label: t.settings.name }, { key: 'role', label: t.settings.role }, { key: 'status', label: t.settings.status }]} emptyMessage="当前没有可见团队成员。" className="rounded-[20px]">
-      {agents.map(agent => (
-        <tr key={agent.name}>
-          <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{agent.name}</td>
-          <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{agent.role}</td>
-          <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant="green">在线</Badge></td>
-        </tr>
-      ))}
-    </DataTable>
-  );
+  if (tab === 'team') return <TeamManagement agents={agents} />;
 
   if (tab === 'permissions') return (
     <div className="space-y-5">
-      <div className="grid grid-cols-4 gap-3 max-[1100px]:grid-cols-2">
-        <StatCard label="角色数" value={String(roleCount)} detail="当前定义的默认权限角色。" />
-        <StatCard label="团队成员数" value={String(agents.length)} detail="均默认继承角色权限。" />
-        <StatCard label="强制复核场景" value={String(manualReviewCount)} detail="命中这些场景时必须进入人工复核。" tone="warning" />
-        <StatCard label="禁止 AI 发送场景" value={String(blockedSendCount)} detail="AI 只能建议，不能直接发送。" tone="danger" />
+      <div className="grid grid-cols-2 gap-3 max-[900px]:grid-cols-1">
+        <StatCard label="角色数" value={String(roleCount)} detail="当前定义的权限角色模版。" />
+        <StatCard label="覆盖成员" value={String(agents.length)} detail="均默认继承对应角色权限。" />
       </div>
-      <PanelCard title="角色权限概览" description="角色权限是团队成员的默认继承源。">
+      <PanelCard title="角色与权限" description="每个角色定义了一组固定的 AI 操作权限，团队成员继承其所属角色的权限。">
         <DataTable columns={[
-          { key: 'role', label: '角色', width: '14%' }, { key: 'scope', label: '职责范围', width: '22%' },
-          { key: 'suggest', label: 'AI 建议' }, { key: 'send', label: '人工发送' }, { key: 'review', label: '复核处理' },
-          { key: 'knowledge', label: '知识访问', width: '18%' }, { key: 'settings', label: '设置访问', width: '14%' }, { key: 'audit', label: '审计访问', width: '18%' },
+          { key: 'role', label: '角色', width: '18%' },
+          { key: 'scope', label: '职责范围', width: '24%' },
+          { key: 'suggest', label: 'AI 建议' },
+          { key: 'send', label: '发送' },
+          { key: 'review', label: '复核' },
+          { key: 'knowledge', label: '知识访问', width: '14%' },
         ]} emptyMessage="当前没有角色权限画像。" className="rounded-[20px]">
           {settings.permissions.roleProfiles.map(profile => (
             <tr key={profile.role}>
-              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{profile.role}</td>
+              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] font-medium">{profile.role}</td>
               <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] text-[var(--color-text-secondary)]">{profile.scopeSummary}</td>
               <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{profile.aiSuggest}</td>
               <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{profile.humanSend}</td>
               <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{profile.manualReviewOverride}</td>
               <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{profile.knowledgeAccess}</td>
-              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{profile.settingsAccess}</td>
-              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{profile.auditAccess}</td>
             </tr>
           ))}
         </DataTable>
       </PanelCard>
-      <PanelCard title="成员继承关系" description="当前版本默认按角色继承。">
+      <PanelCard title="成员权限分配" description="每位成员的当前有效权限。更改角色请在团队管理中操作。">
         <DataTable columns={[
-          { key: 'member', label: '成员', width: '18%' }, { key: 'role', label: '角色', width: '16%' },
-          { key: 'inherit', label: '继承状态', width: '12%' }, { key: 'effective', label: '有效权限摘要', width: '34%' }, { key: 'override', label: '单独覆盖', width: '20%' },
-        ]} emptyMessage="当前没有成员权限继承数据。" className="rounded-[20px]">
+          { key: 'member', label: '成员', width: '20%' },
+          { key: 'role', label: '角色', width: '16%' },
+          { key: 'effective', label: '有效权限', width: '44%' },
+          { key: 'override', label: '特殊授权', width: '20%' },
+        ]} emptyMessage="暂无成员。" className="rounded-[20px]">
           {settings.permissions.memberAssignments.map(member => (
             <tr key={member.memberName}>
               <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{member.memberName}</td>
               <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{member.role}</td>
-              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant={member.inheritsFromRole ? 'green' : 'yellow'}>{member.inheritsFromRole ? '继承角色' : '单独覆盖'}</Badge></td>
               <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] text-[var(--color-text-secondary)]">{member.effectivePermissions}</td>
-              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{member.overrideSummary}</td>
+              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant={member.inheritsFromRole ? 'green' : 'yellow'}>{member.inheritsFromRole ? '标准继承' : '单独覆盖'}</Badge></td>
             </tr>
           ))}
-        </DataTable>
-      </PanelCard>
-      <PanelCard title="场景权限边界" description="统一查看不同业务场景下 AI 建议权、发送权和人工复核要求。">
-        <DataTable columns={[
-          { key: 'scenario', label: '场景', width: '22%' }, { key: 'suggest', label: 'AI 建议' },
-          { key: 'send', label: 'AI 发送' }, { key: 'review', label: '人工复核' }, { key: 'roles', label: '适用角色说明', width: '34%' },
-        ]} emptyMessage="当前没有场景权限边界。" className="rounded-[20px]">
-          {permissionBoundaries.map(boundary => {
-            const s = boundaryBadge(boundary.aiSuggest);
-            const sd = boundaryBadge(boundary.aiSend);
-            const r = boundaryBadge(boundary.manualReview);
-            const roleSummary = boundary.manualReview === 'Yes' ? '客服专员与高级客服可处理前置动作，团队负责人负责最终复核。' : boundary.manualReview === 'Conditional' ? '标准客服可处理，命中异常时升级给高级客服或负责人。' : '客服专员和高级客服可按场景规则完成处理，知识运营仅提供知识支持。';
-            return (
-              <tr key={boundary.scenario}>
-                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{boundary.scenario}</td>
-                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant={s.variant}>{s.label}</Badge></td>
-                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant={sd.variant}>{sd.label}</Badge></td>
-                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant={r.variant}>{r.label}</Badge></td>
-                <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] text-[var(--color-text-secondary)]">{roleSummary}</td>
-              </tr>
-            );
-          })}
         </DataTable>
       </PanelCard>
     </div>
@@ -169,6 +130,60 @@ function renderTabContent(tab: string, lang: Language, onLanguageChange: (l: Lan
   );
 }
 
+function TeamManagement({ agents: initialAgents }: { agents: Agent[] }) {
+  const [members, setMembers] = useState(initialAgents);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newRole, setNewRole] = useState('客服专员');
+  useEffect(() => { setMembers(initialAgents); }, [initialAgents]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-xs text-[var(--color-text-secondary)]">共 {members.length} 名成员</div>
+        <Button size="sm" onClick={() => { setNewName(''); setNewRole('客服专员'); setShowAdd(true); }}>添加成员</Button>
+      </div>
+      <DataTable columns={[
+        { key: 'name', label: '姓名' },
+        { key: 'role', label: '角色' },
+        { key: 'status', label: '状态' },
+        { key: 'actions', label: '操作', width: '80px' },
+      ]} emptyMessage="当前没有团队成员。" className="rounded-[20px]">
+        {members.map((agent, i) => (
+          <tr key={agent.name}>
+            <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] font-medium">{agent.name}</td>
+            <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{agent.role}</td>
+            <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant="green">在线</Badge></td>
+            <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">
+              <Button variant="ghost" size="sm" onClick={() => setMembers(prev => prev.filter((_, j) => j !== i))}>移除</Button>
+            </td>
+          </tr>
+        ))}
+      </DataTable>
+      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="添加成员" actions={
+        <Button size="sm" onClick={() => { if (newName.trim()) { setMembers(prev => [...prev, { name: newName.trim(), role: newRole }]); setShowAdd(false); } }} disabled={!newName.trim()}>确认</Button>
+      }>
+        <div className="space-y-4">
+          <div>
+            <div className="text-xs text-[var(--color-text-secondary)] mb-1">姓名</div>
+            <input className={inputCls} value={newName} onChange={e => setNewName(e.target.value)} placeholder="成员姓名" autoFocus />
+          </div>
+          <div>
+            <div className="text-xs text-[var(--color-text-secondary)] mb-1">角色</div>
+            <select className={inputCls} value={newRole} onChange={e => setNewRole(e.target.value)}>
+              <option>客服专员</option>
+              <option>高级客服</option>
+              <option>团队负责人</option>
+              <option>知识运营</option>
+              <option>管理员</option>
+            </select>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
 export function Settings({ lang, onLanguageChange, settings, agents, permissionBoundaries, initialTab }: SettingsProps) {
   const { t } = useT();
   const [tab, setTab] = useState<string>(initialTab ?? 'general');
@@ -189,7 +204,7 @@ export function Settings({ lang, onLanguageChange, settings, agents, permissionB
             </div>
           </div>
         </div>
-        <PanelCard>{renderTabContent(tab, lang, onLanguageChange, settings, agents, permissionBoundaries, t)}</PanelCard>
+        <PanelCard>{renderTabContent(tab, lang, onLanguageChange, settings, agents, t)}</PanelCard>
       </div>
     );
   }
@@ -227,7 +242,7 @@ export function Settings({ lang, onLanguageChange, settings, agents, permissionB
         </PanelCard>
 
         <PanelCard title={activeTabItem.label}>
-          {renderTabContent(tab, lang, onLanguageChange, settings, agents, permissionBoundaries, t)}
+          {renderTabContent(tab, lang, onLanguageChange, settings, agents, t)}
         </PanelCard>
       </div>
     </div>
