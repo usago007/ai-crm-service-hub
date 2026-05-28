@@ -144,6 +144,21 @@ export function CustomerService({
 
   return (
     <div className="space-y-4">
+      <div className="rounded-[24px] border border-[var(--color-border)] bg-[linear-gradient(180deg,#FFFFFF_0%,#FAFBFC_100%)] p-5">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0">
+            <div className="text-[18px] font-semibold tracking-[-0.02em]">客服工作台</div>
+            <div className="text-sm text-[var(--color-text-secondary)] mt-1">选择工单 → AI 检索 → 生成草稿 → 人工复核 → 发送回复。当前队列 {result.total} 个工单。</div>
+          </div>
+          <div className="flex gap-2 flex-shrink-0">
+            {activeTicket ? (
+              <Badge variant={activeTicket.workflowStage === 'resolved' ? 'green' : activeTicket.workflowStage === 'review' ? 'yellow' : 'blue'}>
+                {displayWorkflow(activeTicket.workflowStage)}
+              </Badge>
+            ) : <Badge variant="gray">未选择工单</Badge>}
+          </div>
+        </div>
+      </div>
       <div className="grid grid-cols-[300px_minmax(0,1fr)_280px] gap-4 min-h-[calc(100vh-240px)] max-[1320px]:grid-cols-[280px_minmax(0,1fr)] max-[1180px]:grid-cols-1">
         <PanelCard
           title="AI 辅助队列"

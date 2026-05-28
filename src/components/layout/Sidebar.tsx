@@ -1,7 +1,6 @@
 import type { FollowUpTask, NavKey, Ticket } from '../../types';
 import { useT } from '../../i18n';
-import { BarChart3, BookOpen, CheckSquare, Cpu, FlaskConical, LayoutDashboard, Map, MessageSquare, Package, PanelLeftClose, PanelLeftOpen, Settings, SlidersHorizontal, TicketCheck, Users } from 'lucide-react';
-import { AI_CONSOLE_PAGES } from '../../pages/ai-console/types';
+import { Activity, BarChart3, CheckSquare, Cpu, Database, FlaskConical, LayoutDashboard, Map, MessageSquare, Package, PanelLeftClose, PanelLeftOpen, Settings, SlidersHorizontal, TicketCheck, Users } from 'lucide-react';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -17,13 +16,6 @@ export function Sidebar({ collapsed, currentPage, tickets, tasks, onNavigate, on
   const openCount = tickets.filter(ticket => ticket.status !== 'Closed' && ticket.status !== 'Escalated').length;
   const newCount = tickets.filter(ticket => ticket.status === 'New').length;
   const pendingTasks = tasks.filter(task => task.status === 'Pending').length;
-  const aiConsoleIconMap: Partial<Record<NavKey, typeof Cpu>> = {
-    'ai-console-rag-config': SlidersHorizontal,
-    'ai-console-scenario-policy': Map,
-    'ai-console-rag-test-lab': FlaskConical,
-    'ai-console-evaluation-feedback': BarChart3,
-    'ai-console-service-health': Cpu,
-  };
 
   const groups = [
     {
@@ -43,17 +35,31 @@ export function Sidebar({ collapsed, currentPage, tickets, tasks, onNavigate, on
       ],
     },
     {
-      label: t.nav.aiControl,
+      label: '知识管理',
       items: [
-        { key: 'knowledge' as NavKey, label: t.nav.knowledge, icon: BookOpen, count: undefined },
-        ...AI_CONSOLE_PAGES.map(item => ({
-          key: item.navKey,
-          label: item.label,
-          icon: aiConsoleIconMap[item.navKey] ?? Cpu,
-          count: undefined,
-        })),
-        { key: 'system-operation-logs' as NavKey, label: '操作日志', icon: BarChart3, count: undefined },
-        { key: 'admin-settings' as NavKey, label: t.nav.settings, icon: Settings, count: undefined },
+        { key: 'knowledge' as NavKey, label: 'AI 知识库', icon: Database, count: undefined },
+        { key: 'system-operation-logs' as NavKey, label: '操作日志', icon: Activity, count: undefined },
+      ],
+    },
+    {
+      label: 'AI 配置',
+      items: [
+        { key: 'ai-console-rag-config' as NavKey, label: '全局 RAG 配置', icon: SlidersHorizontal, count: undefined },
+        { key: 'ai-console-scenario-policy' as NavKey, label: 'AI 场景策略', icon: Map, count: undefined },
+        { key: 'ai-console-rag-test-lab' as NavKey, label: 'RAG 调试台', icon: FlaskConical, count: undefined },
+      ],
+    },
+    {
+      label: '质量监控',
+      items: [
+        { key: 'ai-console-evaluation-feedback' as NavKey, label: '评测与反馈', icon: BarChart3, count: undefined },
+        { key: 'ai-console-service-health' as NavKey, label: '运行状态', icon: Cpu, count: undefined },
+      ],
+    },
+    {
+      label: '系统',
+      items: [
+        { key: 'admin-settings' as NavKey, label: '系统设置', icon: Settings, count: undefined },
       ],
     },
   ];
