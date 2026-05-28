@@ -70,6 +70,19 @@ function nowUiStamp() {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 
+function prependAudit(snapshot: ServiceHubSnapshot, eventType: string, detail: string, riskLevel: 'Low' | 'Medium' | 'High' = 'Low') {
+  snapshot.auditLogs = [{
+    id: `AUD-${String(snapshot.auditLogs.length + 1).padStart(3, '0')}`,
+    ticketId: 'SYSTEM',
+    eventType,
+    actor: '系统',
+    outcome: '配置变更已生效。',
+    riskLevel,
+    timestamp: nowUiStamp(),
+    detail,
+  }, ...snapshot.auditLogs];
+}
+
 function withServiceHealth(snapshot: ServiceHubSnapshot) {
   snapshot.serviceHealth = deriveServiceHealthSnapshot(snapshot);
   return snapshot;
@@ -768,6 +781,7 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
         ...request.ragConfig,
         updatedAt: nowUiStamp(),
       };
+      prependAudit(next, 'Config change', `全局 RAG 配置已更新：Top K=${request.ragConfig.retrieval.topK}，阈值=${request.ragConfig.retrieval.similarityThreshold}，重排序=${request.ragConfig.retrieval.rerankerEnabled ? '开启' : '关闭'}`);
       withServiceHealth(next);
       return { snapshot: next, ragConfig: next.ragConfig };
     },
@@ -781,6 +795,7 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
         defaultScenarioConfigId: next.modelRoutingSummary.defaultScenarioConfigId,
       };
       const config = next.scenarioModelConfigs.find(item => item.id === request.config.id) ?? request.config;
+      prependAudit(next, 'Config change', `场景策略已更新：${request.config.scenario}（${request.config.name}），模型=${request.config.primaryModel}`);
       withServiceHealth(next);
       return { snapshot: next, config };
     },
@@ -795,6 +810,7 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
         defaultScenarioConfigId: next.modelRoutingSummary.defaultScenarioConfigId,
       };
       const config = next.pipelineNodeConfigs.find(item => item.id === request.config.id) ?? request.config;
+      prependAudit(next, 'Config change', `能力节点配置已更新：${request.config.name}，启用=${request.config.enabled ? '是' : '否'}`);
       withServiceHealth(next);
       return { snapshot: next, config };
     },

@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '../../../components/common/Badge';
 import { Button } from '../../../components/common/Button';
+import { Toggle } from '../../../components/common/Toggle';
 import { EmptyState } from '../../../components/common/PageChrome';
 import type { AIConsoleProps } from '../types';
 import { languageOptions, scenarioOptions } from '../types';
 import { Field, InfoCard, PageHeader, PromptBlock, PromptListBlock, SectionCard } from '../shared';
 import { inputCls } from '../sharedUtils';
 import { displayIssueType, displayLanguage, displayRiskLevel, displayScenario } from '../../../utils/display';
+import type { RagTestRun } from '../../../types';
 
 type Props = Pick<AIConsoleProps, 'businessCase' | 'customers' | 'orders' | 'ragTestRuns' | 'effectiveScenarioPolicies' | 'effectiveNodePolicies' | 'onRunRagTest'>;
 
@@ -22,6 +24,14 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
     relatedOrderId: initialOrder?.id ?? '',
   });
   const [selectedRunId, setSelectedRunId] = useState<string | null>(ragTestRuns[0]?.id ?? null);
+
+  // A/B comparison & feedback state
+  const [abMode, setAbMode] = useState(false);
+  const [abRuns, setAbRuns] = useState<{ a: RagTestRun | null; b: RagTestRun | null }>({ a: null, b: null });
+  const [chunkFeedback, setChunkFeedback] = useState<Record<string, 'helpful' | 'not_helpful'>>({});
+  const [presets, setPresets] = useState<Array<{ name: string; form: typeof testForm }>>([]);
+  const [presetName, setPresetName] = useState('');
+  const [showPresets, setShowPresets] = useState(false);
 
   useEffect(() => {
     const ticket = businessCase.ticket;
@@ -58,6 +68,88 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
     customerOrders.find(item => item.id === testForm.relatedOrderId)?.id ??
     customerOrders[0]?.id ??
     '';
+
+  async function handleRun() {
+    const payload = { ...testForm, relatedOrderId: effectiveRelatedOrderId };
+    if (!abMode) {
+      const result = await onRunRagTest(payload);
+      setSelectedRunId(result.run.id);
+      return;
+    }
+    setAbRuns({ a: null, b: null });
+    const resultA = await onRunRagTest(payload);
+    const resultB = await onRunRagTest({
+      ...payload,
+      customerQuestion: `${payload.customerQuestion} [variant: prioritize recall over precision]`,
+    });
+    setAbRuns({ a: resultA.run, b: resultB.run });
+    setSelectedRunId(resultA.run.id);
+  }
+
+  function savePreset() {
+    if (!presetName.trim()) return;
+    setPresets(prev => [...prev, { name: presetName.trim(), form: { ...testForm } }]);
+    setPresetName('');
+    setShowPresets(false);
+  }
+
+  function loadPreset(index: number) {
+    const preset = presets[index];
+    if (!preset) return;
+    setTestForm({ ...preset.form });
+    setShowPresets(false);
+  }
+
+  function removePreset(index: number) {
+    setPresets(prev => prev.filter((_, i) => i !== index));
+  }
+
+  function exportRun(run: RagTestRun) {
+    const data = {
+      id: run.id,
+      question: run.customerQuestion,
+      scenario: run.scenario,
+      language: run.language,
+      guardrailResult: run.guardrailCheck.result,
+      confidence: run.guardrailCheck.confidence,
+      citationCoverage: run.guardrailCheck.citationCoverage,
+      riskLevel: run.guardrailCheck.riskLevel,
+      chunks: run.retrievedChunks.map(c => ({ source: c.source, score: c.score, selected: c.selected, snippet: c.snippet })),
+      draft: run.aiDraftReply,
+      createdAt: run.createdAt,
+    };
+    void navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+  }
+
+  function copyPrompt(run: RagTestRun) {
+    const prompt = [
+      `System: ${run.promptPreview.systemRole}`,
+      `Customer: ${run.promptPreview.customerContext}`,
+      `Order: ${run.promptPreview.orderContext}`,
+      `Summary: ${run.promptPreview.conversationSummary}`,
+      `Knowledge:\n${run.promptPreview.retrievedKnowledge.join('\n')}`,
+      `Rules:\n${run.promptPreview.businessRules.join('\n')}`,
+      `Risk:\n${run.promptPreview.riskPolicy.join('\n')}`,
+      `Blocked:\n${run.promptPreview.blockedClaims.join('\n')}`,
+      `Format: ${run.promptPreview.outputFormat}`,
+    ].join('\n\n');
+    void navigator.clipboard.writeText(prompt);
+  }
+
+  function toggleChunkFeedback(chunkId: string) {
+    setChunkFeedback(prev => {
+      const cur = prev[chunkId];
+      if (cur === 'helpful') return { ...prev, [chunkId]: 'not_helpful' };
+      if (cur === 'not_helpful') { const { [chunkId]: _, ...rest } = prev; return rest; }
+      return { ...prev, [chunkId]: 'helpful' };
+    });
+  }
+
+  const feedbackCounts = useMemo(() => {
+    const helpful = Object.values(chunkFeedback).filter(v => v === 'helpful').length;
+    const unhelpful = Object.values(chunkFeedback).filter(v => v === 'not_helpful').length;
+    return { helpful, unhelpful };
+  }, [chunkFeedback]);
 
   return (
     <div className="space-y-4">
@@ -116,8 +208,38 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
             </Field>
           </div>
         </div>
-        <div className="mt-4">
-          <Button size="sm" onClick={() => { void onRunRagTest({ ...testForm, relatedOrderId: effectiveRelatedOrderId }).then(result => setSelectedRunId(result.run.id)); }}>运行本次调试</Button>
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
+          <Button size="sm" onClick={handleRun}>{abMode ? 'A/B 对比运行' : '运行本次调试'}</Button>
+          <Toggle label="A/B 对比" on={abMode} onClick={() => setAbMode(prev => !prev)} />
+          <div className="relative">
+            <Button variant="secondary" size="sm" onClick={() => setShowPresets(prev => !prev)}>预设配置</Button>
+            {showPresets ? (
+              <>
+                <button type="button" aria-label="关闭预设面板" className="fixed inset-0 z-10 cursor-default" onClick={() => setShowPresets(false)} />
+                <div className="absolute left-0 top-[calc(100%+8px)] z-20 w-[300px] rounded-[18px] border border-[var(--color-border)] bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.14)]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <input className={inputCls} value={presetName} onChange={e => setPresetName(e.target.value)} placeholder="预设名称" />
+                    <Button size="sm" variant="secondary" onClick={savePreset} disabled={!presetName.trim()}>保存</Button>
+                  </div>
+                  {presets.length > 0 ? (
+                    <div className="space-y-1.5 max-h-[180px] overflow-y-auto">
+                      {presets.map((preset, index) => (
+                        <div key={preset.name} className="flex items-center justify-between gap-2 rounded-[12px] bg-[var(--color-bg)] px-3 py-2">
+                          <button type="button" className="text-xs font-medium text-left flex-1" onClick={() => loadPreset(index)}>
+                            {preset.name}
+                            <div className="text-[11px] text-[var(--color-text-light)] mt-0.5">{preset.form.scenario} · {preset.form.language}</div>
+                          </button>
+                          <button type="button" className="text-[11px] text-[var(--color-text-light)] hover:text-[var(--color-danger)]" onClick={() => removePreset(index)}>删除</button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-[var(--color-text-secondary)] py-2">还没有保存的预设，输入名称后点击保存。</div>
+                  )}
+                </div>
+              </>
+            ) : null}
+          </div>
         </div>
       </SectionCard>
 
@@ -138,73 +260,39 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
             </div>
           </SectionCard>
 
-          {effectiveSelectedRun ? (
-            <>
-              <SectionCard title="检索结果">
-                <div className="space-y-3">
-                  {effectiveSelectedRun.retrievedChunks.map(chunk => (
-                    <div key={chunk.id} className="border border-[var(--color-border-light)] rounded-[14px] p-3 text-xs">
-                      <div className="flex items-center justify-between gap-3 mb-1">
-                        <div className="font-medium">{chunk.source}</div>
-                        <Badge variant={chunk.selected ? 'green' : 'gray'}>分数 {chunk.score}</Badge>
-                      </div>
-                      <div className="text-[var(--color-text-secondary)] mb-2">{chunk.snippet}</div>
-                      <div className="flex gap-1 flex-wrap mb-2">
-                        {Object.entries(chunk.metadata).map(([key, value]) => <Badge key={key} variant="blue">{key}: {value}</Badge>)}
-                      </div>
-                      <div className="text-[11px] text-[var(--color-text-light)]">{chunk.rejectReason ?? '命中原因：与当前问题、场景和客户上下文高度匹配。'}</div>
-                    </div>
-                  ))}
+          {effectiveSelectedRun && !abMode ? (
+            <RunResultDetail
+              run={effectiveSelectedRun}
+              chunkFeedback={chunkFeedback}
+              onToggleFeedback={toggleChunkFeedback}
+              feedbackCounts={feedbackCounts}
+              onExport={exportRun}
+              onCopyPrompt={copyPrompt}
+            />
+          ) : abMode && (abRuns.a || abRuns.b) ? (
+            <div className={abRuns.a && abRuns.b ? 'grid grid-cols-2 gap-4 max-[1200px]:grid-cols-1' : ''}>
+              {abRuns.a ? (
+                <div>
+                  <div className="text-xs font-semibold text-[var(--color-primary)] mb-2 px-1">Run A（标准参数）</div>
+                  <RunResultDetail run={abRuns.a} chunkFeedback={chunkFeedback} onToggleFeedback={toggleChunkFeedback} feedbackCounts={feedbackCounts} onExport={exportRun} onCopyPrompt={copyPrompt} />
                 </div>
-              </SectionCard>
-
-              <SectionCard title="Prompt 预览">
-                <div className="grid grid-cols-2 gap-3 max-[1000px]:grid-cols-1">
-                  <PromptBlock label="系统角色" value={effectiveSelectedRun.promptPreview.systemRole} />
-                  <PromptBlock label="客户上下文" value={effectiveSelectedRun.promptPreview.customerContext} />
-                  <PromptBlock label="订单上下文" value={effectiveSelectedRun.promptPreview.orderContext} />
-                  <PromptBlock label="会话摘要" value={effectiveSelectedRun.promptPreview.conversationSummary} />
-                  <PromptListBlock label="检索知识" values={effectiveSelectedRun.promptPreview.retrievedKnowledge} />
-                  <PromptListBlock label="业务规则" values={effectiveSelectedRun.promptPreview.businessRules} />
-                  <PromptListBlock label="风险政策" values={effectiveSelectedRun.promptPreview.riskPolicy} />
-                  <PromptListBlock label="禁止承诺" values={effectiveSelectedRun.promptPreview.blockedClaims} />
-                  <PromptBlock label="输出格式" value={effectiveSelectedRun.promptPreview.outputFormat} className="col-span-2 max-[1000px]:col-span-1" />
+              ) : null}
+              {abRuns.b ? (
+                <div>
+                  <div className="text-xs font-semibold text-[var(--color-accent)] mb-2 px-1">Run B（变体参数）</div>
+                  <RunResultDetail run={abRuns.b} chunkFeedback={chunkFeedback} onToggleFeedback={toggleChunkFeedback} feedbackCounts={feedbackCounts} onExport={exportRun} onCopyPrompt={copyPrompt} />
                 </div>
-              </SectionCard>
-
-              <SectionCard title="AI 草稿与护栏检查">
-                <div className="border border-[var(--color-border-light)] rounded-[14px] p-3 bg-[var(--color-bg)] text-xs whitespace-pre-wrap mb-3">{effectiveSelectedRun.aiDraftReply}</div>
-                <div className="grid grid-cols-3 gap-3 max-[1000px]:grid-cols-2">
-                  <InfoCard label="置信度" value={`${effectiveSelectedRun.guardrailCheck.confidence}%`} />
-                  <InfoCard label="引用覆盖率" value={`${effectiveSelectedRun.guardrailCheck.citationCoverage}%`} />
-                  <InfoCard label="风险等级" value={displayRiskLevel(effectiveSelectedRun.guardrailCheck.riskLevel)} />
-                  <InfoCard label="需要人工复核" value={effectiveSelectedRun.guardrailCheck.manualReviewRequired ? '是' : '否'} />
-                  <InfoCard label="AI 权限" value={effectiveSelectedRun.guardrailCheck.aiPermission === 'suggest_only' ? '仅建议' : '已禁用'} />
-                  <InfoCard label="自动发送" value="禁用" />
-                </div>
-                <div className="mt-3 border border-[var(--color-border-light)] rounded-[14px] p-3 text-xs">
-                  <div className="font-semibold mb-2">护栏结果</div>
-                  <Badge variant={effectiveSelectedRun.guardrailCheck.result === 'passed' ? 'green' : 'red'}>
-                    {effectiveSelectedRun.guardrailCheck.result === 'passed' ? '通过' : '要求人工复核'}
-                  </Badge>
-                  <ul className="list-disc pl-4 mt-2 space-y-1 text-[var(--color-text-secondary)]">
-                    {effectiveSelectedRun.guardrailCheck.notes.map(note => <li key={note}>{note}</li>)}
-                  </ul>
-                  {effectiveSelectedRun.guardrailCheck.trace ? (
-                    <div className="mt-3 border-t border-[var(--color-border-light)] pt-3 space-y-1">
-                      <div>场景策略来源：{effectiveSelectedRun.guardrailCheck.trace.scenarioStrategyName}</div>
-                      <div>命中节点：{effectiveSelectedRun.guardrailCheck.trace.matchedNodeIds.join(' / ') || '无'}</div>
-                      <div>禁止承诺：{effectiveSelectedRun.guardrailCheck.trace.blockedClaims.join(' / ') || '无'}</div>
-                    </div>
-                  ) : null}
-                </div>
-              </SectionCard>
-            </>
+              ) : null}
+            </div>
+          ) : abMode ? (
+            <SectionCard title="A/B 对比结果">
+              <EmptyState title="点击 A/B 对比运行执行两次检索" description="系统将使用当前参数和变体参数各运行一次，并排展示结果。" compact />
+            </SectionCard>
           ) : (
             <SectionCard title="运行结果">
               <EmptyState
                 title="还没有本次调试结果"
-                action={<Button size="sm" onClick={() => { void onRunRagTest({ ...testForm, relatedOrderId: effectiveRelatedOrderId }).then(result => setSelectedRunId(result.run.id)); }}>立即运行</Button>}
+                action={<Button size="sm" onClick={handleRun}>立即运行</Button>}
                 compact
               />
             </SectionCard>
@@ -230,5 +318,107 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
         </SectionCard>
       </div>
     </div>
+  );
+}
+
+function RunResultDetail({
+  run,
+  chunkFeedback,
+  onToggleFeedback,
+  feedbackCounts,
+  onExport,
+  onCopyPrompt,
+}: {
+  run: RagTestRun;
+  chunkFeedback: Record<string, 'helpful' | 'not_helpful'>;
+  onToggleFeedback: (chunkId: string) => void;
+  feedbackCounts: { helpful: number; unhelpful: number };
+  onExport: (run: RagTestRun) => void;
+  onCopyPrompt: (run: RagTestRun) => void;
+}) {
+  return (
+    <>
+      <SectionCard title="检索结果">
+        {(feedbackCounts.helpful > 0 || feedbackCounts.unhelpful > 0) ? (
+          <div className="flex items-center gap-3 mb-3 text-xs">
+            <Badge variant="green">{feedbackCounts.helpful} 个有帮助</Badge>
+            <Badge variant="red">{feedbackCounts.unhelpful} 个无帮助</Badge>
+          </div>
+        ) : null}
+        <div className="space-y-3">
+          {run.retrievedChunks.map(chunk => {
+            const fb = chunkFeedback[chunk.id];
+            return (
+              <div key={chunk.id} className="border border-[var(--color-border-light)] rounded-[14px] p-3 text-xs">
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <div className="font-medium">{chunk.source}</div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={chunk.selected ? 'green' : 'gray'}>分数 {chunk.score}</Badge>
+                    <button
+                      type="button"
+                      className={`text-[11px] px-2 py-0.5 rounded-[8px] border transition-colors ${fb === 'helpful' ? 'bg-[rgba(5,150,105,0.12)] border-[var(--color-success)] text-[var(--color-success)]' : fb === 'not_helpful' ? 'bg-[rgba(239,68,68,0.10)] border-[var(--color-danger)] text-[var(--color-danger)]' : 'border-[var(--color-border-light)] text-[var(--color-text-light)] hover:border-[var(--color-border)]'}`}
+                      onClick={() => onToggleFeedback(chunk.id)}
+                    >
+                      {fb === 'helpful' ? '有帮助' : fb === 'not_helpful' ? '无帮助' : '反馈'}
+                    </button>
+                  </div>
+                </div>
+                <div className="text-[var(--color-text-secondary)] mb-2">{chunk.snippet}</div>
+                <div className="flex gap-1 flex-wrap mb-2">
+                  {Object.entries(chunk.metadata).map(([key, value]) => <Badge key={key} variant="blue">{key}: {value}</Badge>)}
+                </div>
+                <div className="text-[11px] text-[var(--color-text-light)]">{chunk.rejectReason ?? '命中原因：与当前问题、场景和客户上下文高度匹配。'}</div>
+              </div>
+            );
+          })}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Prompt 预览">
+        <div className="grid grid-cols-2 gap-3 max-[1000px]:grid-cols-1">
+          <PromptBlock label="系统角色" value={run.promptPreview.systemRole} />
+          <PromptBlock label="客户上下文" value={run.promptPreview.customerContext} />
+          <PromptBlock label="订单上下文" value={run.promptPreview.orderContext} />
+          <PromptBlock label="会话摘要" value={run.promptPreview.conversationSummary} />
+          <PromptListBlock label="检索知识" values={run.promptPreview.retrievedKnowledge} />
+          <PromptListBlock label="业务规则" values={run.promptPreview.businessRules} />
+          <PromptListBlock label="风险政策" values={run.promptPreview.riskPolicy} />
+          <PromptListBlock label="禁止承诺" values={run.promptPreview.blockedClaims} />
+          <PromptBlock label="输出格式" value={run.promptPreview.outputFormat} className="col-span-2 max-[1000px]:col-span-1" />
+        </div>
+      </SectionCard>
+
+      <SectionCard title="AI 草稿与护栏检查">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <Button size="sm" variant="secondary" onClick={() => onExport(run)}>导出结果</Button>
+          <Button size="sm" variant="secondary" onClick={() => onCopyPrompt(run)}>复制 Prompt</Button>
+        </div>
+        <div className="border border-[var(--color-border-light)] rounded-[14px] p-3 bg-[var(--color-bg)] text-xs whitespace-pre-wrap mb-3">{run.aiDraftReply}</div>
+        <div className="grid grid-cols-3 gap-3 max-[1000px]:grid-cols-2">
+          <InfoCard label="置信度" value={`${run.guardrailCheck.confidence}%`} />
+          <InfoCard label="引用覆盖率" value={`${run.guardrailCheck.citationCoverage}%`} />
+          <InfoCard label="风险等级" value={displayRiskLevel(run.guardrailCheck.riskLevel)} />
+          <InfoCard label="需要人工复核" value={run.guardrailCheck.manualReviewRequired ? '是' : '否'} />
+          <InfoCard label="AI 权限" value={run.guardrailCheck.aiPermission === 'suggest_only' ? '仅建议' : '已禁用'} />
+          <InfoCard label="自动发送" value="禁用" />
+        </div>
+        <div className="mt-3 border border-[var(--color-border-light)] rounded-[14px] p-3 text-xs">
+          <div className="font-semibold mb-2">护栏结果</div>
+          <Badge variant={run.guardrailCheck.result === 'passed' ? 'green' : 'red'}>
+            {run.guardrailCheck.result === 'passed' ? '通过' : '要求人工复核'}
+          </Badge>
+          <ul className="list-disc pl-4 mt-2 space-y-1 text-[var(--color-text-secondary)]">
+            {run.guardrailCheck.notes.map(note => <li key={note}>{note}</li>)}
+          </ul>
+          {run.guardrailCheck.trace ? (
+            <div className="mt-3 border-t border-[var(--color-border-light)] pt-3 space-y-1">
+              <div>场景策略来源：{run.guardrailCheck.trace.scenarioStrategyName}</div>
+              <div>命中节点：{run.guardrailCheck.trace.matchedNodeIds.join(' / ') || '无'}</div>
+              <div>禁止承诺：{run.guardrailCheck.trace.blockedClaims.join(' / ') || '无'}</div>
+            </div>
+          ) : null}
+        </div>
+      </SectionCard>
+    </>
   );
 }

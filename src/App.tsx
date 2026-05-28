@@ -116,6 +116,7 @@ export default function App() {
             onCloseTicket={ticketId => { void app.closeTicket(ticketId); }}
             onReview={(ticketId, decision) => { void app.runReview(ticketId, decision); }}
             onRunAction={(ticketId, actionId) => { void app.runAction(ticketId, actionId); }}
+            replyTemplates={app.replyTemplates}
           />
         );
       case 'tickets':
@@ -171,6 +172,10 @@ export default function App() {
             jobs={app.aiConsole.jobs}
             onIngestionAction={app.runIngestionAction}
             onCreateKnowledgeBase={app.createKnowledgeBase}
+            onUpdateKnowledgeBaseMeta={app.updateKnowledgeBaseMeta}
+            onUpdateKnowledgeBaseOverrides={app.updateKnowledgeBaseOverrides}
+            onArchiveKnowledgeBase={app.archiveKnowledgeBase}
+            onCloneKnowledgeBase={app.cloneKnowledgeBase}
             onOpenKnowledgeBase={app.openKnowledgeBase}
             onBackToKnowledgeList={app.backToKnowledgeList}
             onKnowledgeDetailTabChange={app.setKnowledgeDetailTab}

@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createMockServiceHubApi } from '../../api/adapters/mockServiceHub';
 import { createMockSnapshot } from '../../mocks/fixtures/serviceHub';
 import type {
-  BusinessRule,
   CustomerFilters,
   DocumentFilters,
-  FAQ,
   KnowledgeBaseRecord,
   KnowledgeDetailTab,
   KnowledgeFlow,
@@ -24,14 +23,11 @@ import type {
   OverviewSnapshot,
   OverviewTodoItem,
   PagedResult,
-  PolicyDoc,
   RagConfigSnapshot,
   RagRunFilters,
-  ReplyTemplate,
   AIConsolePageKey,
   ScenarioSettingsTab,
   ServiceHubSnapshot,
-  ServiceTicket,
   TaskFilters,
   TicketFilters,
   Toast,
@@ -153,9 +149,10 @@ function createSeedKnowledgeBases(snapshot: ServiceHubSnapshot): KnowledgeBaseRe
       documentCount: docs.length,
       updatedAt: latestSync ?? nowUiStamp(),
       owner: group.owner,
-      source: 'service_api',
+      source: 'service_api' as const,
       status: group.status,
       documentIds: docs.map(doc => doc.id),
+      ...(group.id === 'KB-OPS' ? { configOverrides: { chunking: { strategy: 'by heading', chunkSize: 500, chunkOverlap: 80 }, retrieval: { topK: 5, similarityThreshold: 0.78 } } } : {}),
     };
   });
 }
@@ -190,19 +187,60 @@ export function useServiceHubApp() {
   const [documentQuery, setDocumentQuery] = useState<ListQuery<DocumentFilters>>({ page: 1, pageSize: 8, sortBy: 'scenario', sortOrder: 'asc', search: '', filters: {} });
   const [ragRunQuery, setRagRunQuery] = useState<ListQuery<RagRunFilters>>({ page: 1, pageSize: 8, sortBy: 'createdAt', sortOrder: 'desc', search: '', filters: {} });
 
-  const [customerResult, setCustomerResult] = useState<PagedResult<ServiceHubSnapshot['customers'][number]>>(emptyPaged(8));
-  const [ticketResult, setTicketResult] = useState<PagedResult<ServiceTicket>>(emptyPaged(10));
-  const [orderResult, setOrderResult] = useState<PagedResult<ServiceHubSnapshot['orders'][number]>>(emptyPaged(10));
-  const [taskResult, setTaskResult] = useState<PagedResult<ServiceHubSnapshot['tasks'][number]>>(emptyPaged(10));
-  const [operationLogResult, setOperationLogResult] = useState<PagedResult<ServiceHubSnapshot['operationLogs'][number]>>(emptyPaged(10));
-  const [documentResult, setDocumentResult] = useState<PagedResult<ServiceHubSnapshot['knowledgeDocuments'][number]>>(emptyPaged(8));
-  const [ragRunResult, setRagRunResult] = useState<PagedResult<ServiceHubSnapshot['ragRuns'][number]>>(emptyPaged(8));
-  const [faqList, setFaqList] = useState<FAQ[]>([]);
-  const [replyTemplates, setReplyTemplates] = useState<ReplyTemplate[]>([]);
-  const [businessRules, setBusinessRules] = useState<BusinessRule[]>([]);
-  const [policyDocs, setPolicyDocs] = useState<PolicyDoc[]>([]);
+  const queryClient = useQueryClient();
+  const snapshotRef = useRef(snapshot);
+  const apiRef = useRef(createMockServiceHubApi(snapshot));
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+    apiRef.current = createMockServiceHubApi(snapshot);
+  }, [snapshot]);
 
-  const api = useMemo(() => createMockServiceHubApi(snapshot), [snapshot]);
+  const { data: customerResult = emptyPaged(8) } = useQuery({
+    queryKey: ['customers', customerQuery, globalSearch],
+    queryFn: () => apiRef.current.getCustomers({ ...customerQuery, search: customerQuery.search || globalSearch }),
+  });
+  const { data: ticketResult = emptyPaged(10) } = useQuery({
+    queryKey: ['tickets', ticketQuery, globalSearch],
+    queryFn: () => apiRef.current.getTickets({ ...ticketQuery, search: ticketQuery.search || globalSearch }),
+  });
+  const { data: orderResult = emptyPaged(10) } = useQuery({
+    queryKey: ['orders', orderQuery, globalSearch],
+    queryFn: () => apiRef.current.getOrders({ ...orderQuery, search: orderQuery.search || globalSearch }),
+  });
+  const { data: taskResult = emptyPaged(10) } = useQuery({
+    queryKey: ['tasks', taskQuery, globalSearch],
+    queryFn: () => apiRef.current.getTasks({ ...taskQuery, search: taskQuery.search || globalSearch }),
+  });
+  const { data: operationLogResult = emptyPaged(10) } = useQuery({
+    queryKey: ['operationLogs', operationLogQuery, globalSearch],
+    queryFn: () => apiRef.current.getOperationLogs({ ...operationLogQuery, search: operationLogQuery.search || globalSearch }),
+  });
+  const { data: documentResult = emptyPaged(8) } = useQuery({
+    queryKey: ['knowledgeDocuments', documentQuery, globalSearch],
+    queryFn: () => apiRef.current.getKnowledgeDocuments({ ...documentQuery, search: documentQuery.search || globalSearch }),
+  });
+  const { data: ragRunResult = emptyPaged(8) } = useQuery({
+    queryKey: ['ragRuns', ragRunQuery, globalSearch],
+    queryFn: () => apiRef.current.getRagRuns({ ...ragRunQuery, search: ragRunQuery.search || globalSearch }),
+  });
+  const { data: refData } = useQuery({
+    queryKey: ['referenceData'],
+    queryFn: async () => {
+      const [faqs, templates, rules, docs] = await Promise.all([
+        apiRef.current.getFaqs(),
+        apiRef.current.getReplyTemplates(),
+        apiRef.current.getBusinessRules(),
+        apiRef.current.getPolicyDocs(),
+      ]);
+      return { faqs, replyTemplates: templates, businessRules: rules, policyDocs: docs };
+    },
+    staleTime: 60_000,
+  });
+  const faqList = refData?.faqs ?? [];
+  const replyTemplates = refData?.replyTemplates ?? [];
+  const businessRules = refData?.businessRules ?? [];
+  const policyDocs = refData?.policyDocs ?? [];
+
   const selectedKnowledgeBase = useMemo(
     () => knowledgeBases.find(item => item.id === selectedKnowledgeBaseId) ?? null,
     [knowledgeBases, selectedKnowledgeBaseId],
@@ -391,46 +429,13 @@ export function useServiceHubApp() {
     setTimeout(() => setToasts(prev => prev.filter(item => item.id !== id)), 2800);
   }
 
-  async function refreshWith<T extends { snapshot: ServiceHubSnapshot }>(promise: Promise<T>) {
-    const result = await promise;
-    setSnapshot(result.snapshot);
-    return result;
+  function refreshWith<T extends { snapshot: ServiceHubSnapshot }>(promise: Promise<T>) {
+    return promise.then(result => {
+      setSnapshot(result.snapshot);
+      queryClient.invalidateQueries();
+      return result;
+    });
   }
-
-  useEffect(() => {
-    void api.getCustomers({ ...customerQuery, search: customerQuery.search || globalSearch }).then(setCustomerResult);
-  }, [api, customerQuery, globalSearch]);
-
-  useEffect(() => {
-    void api.getTickets({ ...ticketQuery, search: ticketQuery.search || globalSearch }).then(setTicketResult);
-  }, [api, ticketQuery, globalSearch]);
-
-  useEffect(() => {
-    void api.getOrders({ ...orderQuery, search: orderQuery.search || globalSearch }).then(setOrderResult);
-  }, [api, orderQuery, globalSearch]);
-
-  useEffect(() => {
-    void api.getTasks({ ...taskQuery, search: taskQuery.search || globalSearch }).then(setTaskResult);
-  }, [api, taskQuery, globalSearch]);
-
-  useEffect(() => {
-    void api.getOperationLogs({ ...operationLogQuery, search: operationLogQuery.search || globalSearch }).then(setOperationLogResult);
-  }, [api, operationLogQuery, globalSearch]);
-
-  useEffect(() => {
-    void api.getKnowledgeDocuments({ ...documentQuery, search: documentQuery.search || globalSearch }).then(setDocumentResult);
-  }, [api, documentQuery, globalSearch]);
-
-  useEffect(() => {
-    void api.getRagRuns({ ...ragRunQuery, search: ragRunQuery.search || globalSearch }).then(setRagRunResult);
-  }, [api, ragRunQuery, globalSearch]);
-
-  useEffect(() => {
-    void api.getFaqs().then(setFaqList);
-    void api.getReplyTemplates().then(setReplyTemplates);
-    void api.getBusinessRules().then(setBusinessRules);
-    void api.getPolicyDocs().then(setPolicyDocs);
-  }, [api]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -482,8 +487,8 @@ export function useServiceHubApp() {
     serviceHealth: snapshot.serviceHealth,
   };
 
-  async function createKnowledgeDocumentFlow(payload: Parameters<typeof api.createKnowledgeDocument>[0]) {
-    const result = await refreshWith(api.createKnowledgeDocument(payload));
+  async function createKnowledgeDocumentFlow(payload: Parameters<typeof apiRef.current.createKnowledgeDocument>[0]) {
+    const result = await refreshWith(apiRef.current.createKnowledgeDocument(payload));
     const documentId = result.document.id;
     if (result.document.publishStatus === 'version_conflict') {
       pushToast('已创建知识接入任务，当前文档因版本冲突进入失败分支', 'warning');
@@ -528,7 +533,7 @@ export function useServiceHubApp() {
       chunking: structuredClone(knowledgeWizardDraft.chunking),
       retrieval: structuredClone(knowledgeWizardDraft.retrieval),
     };
-    await refreshWith(api.updateRagConfig({ ragConfig: nextRagConfig }));
+    await refreshWith(apiRef.current.updateRagConfig({ ragConfig: nextRagConfig }));
 
     const result = await createKnowledgeDocumentFlow({
       name: knowledgeWizardDraft.documentName || knowledgeWizardDraft.fileName || `${displayScenario(knowledgeWizardDraft.scenario)}资料-${Date.now()}.md`,
@@ -676,7 +681,7 @@ export function useServiceHubApp() {
 
   return {
     snapshot,
-    api,
+    api: apiRef.current,
     overview,
     aiConsole,
     aiConsoleBusinessCase,
@@ -741,14 +746,14 @@ export function useServiceHubApp() {
     businessRules,
     policyDocs,
     openOverviewTarget,
-    createKnowledgeBase(name?: string) {
+    createKnowledgeBase(name: string, description?: string, tags?: string[]) {
       const nextId = `KB-CUSTOM-${Date.now()}`;
       const knowledgeBase: KnowledgeBaseRecord = {
         id: nextId,
-        name: name?.trim() || `新知识库 ${knowledgeBases.filter(item => item.id.startsWith('KB-CUSTOM-')).length + 1}`,
-        description: '用于承接新导入的业务资料、流程说明或场景 SOP。',
+        name: name.trim() || `新知识库 ${knowledgeBases.filter(item => item.id.startsWith('KB-CUSTOM-')).length + 1}`,
+        description: description?.trim() || '用于承接新导入的业务资料、流程说明或场景 SOP。',
         icon: 'KB',
-        tags: ['待整理'],
+        tags: tags && tags.length > 0 ? tags : ['待整理'],
         documentCount: 0,
         updatedAt: nowUiStamp(),
         owner: '知识运营',
@@ -760,7 +765,30 @@ export function useServiceHubApp() {
       setSelectedKnowledgeBaseId(knowledgeBase.id);
       setKnowledgeDetailTab('documents');
       setKnowledgeFlow('detail');
-      pushToast('已创建知识库', 'success');
+      pushToast(`已创建知识库「${knowledgeBase.name}」`, 'success');
+    },
+    updateKnowledgeBaseMeta(id: string, updates: { name?: string; description?: string; tags?: string[]; owner?: string }) {
+      setKnowledgeBases(prev => prev.map(kb => kb.id === id ? { ...kb, ...updates, updatedAt: nowUiStamp() } : kb));
+      pushToast('已更新知识库信息', 'success');
+    },
+    updateKnowledgeBaseOverrides(id: string, configOverrides: KnowledgeBaseRecord['configOverrides']) {
+      setKnowledgeBases(prev => prev.map(kb => kb.id === id ? { ...kb, configOverrides, updatedAt: nowUiStamp() } : kb));
+      pushToast('已保存知识库配置覆盖', 'success');
+    },
+    archiveKnowledgeBase(id: string) {
+      setKnowledgeBases(prev => prev.map(kb => kb.id === id ? { ...kb, status: 'draft' as const, updatedAt: nowUiStamp() } : kb));
+      setKnowledgeFlow('list');
+      pushToast('已归档知识库', 'info');
+    },
+    cloneKnowledgeBase(id: string) {
+      const source = knowledgeBases.find(kb => kb.id === id);
+      if (!source) return;
+      const nextId = `KB-CLONE-${Date.now()}`;
+      const clone: KnowledgeBaseRecord = { ...source, id: nextId, name: `${source.name} (副本)`, status: 'draft', documentIds: [...source.documentIds], documentCount: source.documentCount, updatedAt: nowUiStamp() };
+      setKnowledgeBases(prev => [clone, ...prev]);
+      setSelectedKnowledgeBaseId(nextId);
+      setKnowledgeFlow('detail');
+      pushToast(`已克隆知识库「${clone.name}」`, 'success');
     },
     openKnowledgeBase(id: string) {
       setSelectedKnowledgeBaseId(id);
@@ -808,12 +836,12 @@ export function useServiceHubApp() {
       setKnowledgeProcessingResult(null);
     },
     async runRetrieve(ticketId: string) {
-      const result = await refreshWith(api.retrieveTicket({ ticketId }));
+      const result = await refreshWith(apiRef.current.retrieveTicket({ ticketId }));
       pushToast('已重新执行检索链路', 'info');
       return result;
     },
     async runDraft(ticketId: string) {
-      const result = await refreshWith(api.draftTicket({ ticketId }));
+      const result = await refreshWith(apiRef.current.draftTicket({ ticketId }));
       const draft = result.draft;
       if (draft) setReplyText(draft.content);
       pushToast('已载入 AI 草稿', 'success');
@@ -830,7 +858,7 @@ export function useServiceHubApp() {
       pushToast('已插入 AI 建议', 'success');
     },
     async sendReply(ticketId: string) {
-      const result = await refreshWith(api.sendTicketReply({ ticketId, content: replyText, agentName: '你' }));
+      const result = await refreshWith(apiRef.current.sendTicketReply({ ticketId, content: replyText, agentName: '你' }));
       if (result.guardrail?.blocked) {
         pushToast('当前场景必须先完成人工复核，再由人工发送', 'warning');
         return result;
@@ -844,78 +872,78 @@ export function useServiceHubApp() {
         pushToast('没有可保存的内容', 'warning');
         return null;
       }
-      const result = await refreshWith(api.saveTicketDraft({ ticketId, content: replyText }));
+      const result = await refreshWith(apiRef.current.saveTicketDraft({ ticketId, content: replyText }));
       pushToast('已保存回复草稿', 'success');
       return result;
     },
     async closeTicket(ticketId: string) {
-      const result = await refreshWith(api.closeTicket({ ticketId, actor: '你' }));
+      const result = await refreshWith(apiRef.current.closeTicket({ ticketId, actor: '你' }));
       pushToast(result.message, result.blocked ? 'warning' : 'success');
       return result;
     },
     async runReview(ticketId: string, decision: 'approved' | 'rejected' | 'escalated') {
-      const result = await refreshWith(api.reviewTicket({ ticketId, decision, reviewer: '你', reason: decision === 'approved' ? '模拟人工复核：通过' : decision === 'escalated' ? '模拟人工复核：升级处理' : '模拟人工复核：驳回' }));
+      const result = await refreshWith(apiRef.current.reviewTicket({ ticketId, decision, reviewer: '你', reason: decision === 'approved' ? '模拟人工复核：通过' : decision === 'escalated' ? '模拟人工复核：升级处理' : '模拟人工复核：驳回' }));
       pushToast(decision === 'approved' ? '已通过人工复核' : decision === 'escalated' ? '已升级至人工处理' : '已退回复核', decision === 'approved' ? 'success' : 'warning');
       return result;
     },
     async runAction(ticketId: string, actionId: string) {
-      const result = await refreshWith(api.runTicketAction({ ticketId, actionId }));
+      const result = await refreshWith(apiRef.current.runTicketAction({ ticketId, actionId }));
       pushToast(result.action?.status === 'completed' ? '内部动作已执行完成' : '内部动作已被策略拦截', result.action?.status === 'completed' ? 'success' : 'warning');
       return result;
     },
     createKnowledgeDocument: createKnowledgeDocumentFlow,
     async runIngestionAction(documentId: string, action: 'view_parsed_text' | 'view_chunks' | 'rebuild_embedding' | 'publish' | 'disable') {
-      const result = await refreshWith(api.runIngestionAction({ documentId, action }));
+      const result = await refreshWith(apiRef.current.runIngestionAction({ documentId, action }));
       pushToast(result.message, action === 'disable' ? 'warning' : 'info');
       return result;
     },
     async reindexKnowledgeDocument(id: string) {
-      const result = await refreshWith(api.reindexKnowledgeDocument(id));
+      const result = await refreshWith(apiRef.current.reindexKnowledgeDocument(id));
       pushToast('已处理重建索引请求', 'info');
       return result;
     },
     async updateRagConfig(ragConfig: RagConfigSnapshot) {
-      const result = await refreshWith(api.updateRagConfig({ ragConfig }));
+      const result = await refreshWith(apiRef.current.updateRagConfig({ ragConfig }));
       pushToast('已更新 RAG 配置', 'success');
       return result;
     },
     async updateScenarioModelConfig(config: ServiceHubSnapshot['scenarioModelConfigs'][number]) {
-      const result = await refreshWith(api.updateScenarioModelConfig({ config }));
+      const result = await refreshWith(apiRef.current.updateScenarioModelConfig({ config }));
       pushToast('已更新场景策略', 'success');
       return result;
     },
     async updatePipelineNodeConfig(config: ServiceHubSnapshot['pipelineNodeConfigs'][number]) {
-      const result = await refreshWith(api.updatePipelineNodeConfig({ config }));
+      const result = await refreshWith(apiRef.current.updatePipelineNodeConfig({ config }));
       pushToast('已更新能力节点配置', 'success');
       return result;
     },
     async runRagTest(payload: { customerQuestion: string; customerId: string; scenario: string; language: string; relatedOrderId: string }) {
-      const result = await refreshWith(api.runRagTest(payload));
+      const result = await refreshWith(apiRef.current.runRagTest(payload));
       pushToast('已完成 RAG 调试运行', 'success');
       return result;
     },
     async refreshServiceHealth() {
-      const result = await refreshWith(api.refreshServiceHealth());
+      const result = await refreshWith(apiRef.current.refreshServiceHealth());
       pushToast('已刷新运行状态', 'info');
       return result.serviceHealth;
     },
     async runServiceHealthCheck() {
-      const result = await refreshWith(api.runServiceHealthCheck());
+      const result = await refreshWith(apiRef.current.runServiceHealthCheck());
       pushToast('已完成健康检查', 'success');
       return result.result;
     },
     async retryFailedJobs() {
-      const result = await refreshWith(api.retryFailedIngestionJobs());
+      const result = await refreshWith(apiRef.current.retryFailedIngestionJobs());
       pushToast(result.retriedJobs.length > 0 ? `已重试 ${result.retriedJobs.length} 个失败任务` : '当前没有失败任务需要重试', result.retriedJobs.length > 0 ? 'success' : 'info');
       return { retriedJobs: result.retriedJobs };
     },
     async rebuildVectorIndex() {
-      const result = await refreshWith(api.rebuildVectorIndex());
+      const result = await refreshWith(apiRef.current.rebuildVectorIndex());
       pushToast(result.message, 'info');
       return { message: result.message };
     },
     async viewServiceHealthLastError(id?: string) {
-      const error = await api.getServiceHealthLastError(id);
+      const error = await apiRef.current.getServiceHealthLastError(id);
       pushToast(error ? `${error.source}: ${error.message}` : '当前没有可查看的错误', error ? 'warning' : 'info');
       return error;
     },

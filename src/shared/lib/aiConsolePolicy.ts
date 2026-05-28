@@ -31,6 +31,7 @@ export function findNodeConfig(configs: PipelineNodeModelConfig[], nodeId: strin
 export function buildEffectiveScenarioPolicies(
   scenarioModelConfigs: ScenarioModelConfig[],
   pipelineNodeConfigs: PipelineNodeModelConfig[],
+  ragConfig?: RagConfigSnapshot,
 ) : EffectiveScenarioPolicy[] {
   return scenarioModelConfigs.map(config => {
     const activeNodeOverrideCount = pipelineNodeConfigs.filter(item => item.enabled && !item.inheritFromScenario && item.allowedScenarios.includes(config.scenario)).length;
@@ -39,13 +40,17 @@ export function buildEffectiveScenarioPolicies(
       : config.manualReviewRequired
       ? 'yellow'
       : 'green';
+    // Fall back to global RAG config when scenario-level field is undefined
+    const effectiveTopK = config.topK ?? ragConfig?.retrieval.topK ?? 5;
+    const effectiveThreshold = config.similarityThreshold ?? ragConfig?.retrieval.similarityThreshold ?? 0.78;
+    const effectiveReranker = config.rerankerEnabled ?? ragConfig?.retrieval.rerankerEnabled ?? false;
     return {
       scenarioConfigId: config.id,
       scenario: config.scenario,
       strategyName: config.name,
       primaryModel: config.primaryModel,
       fallbackModel: config.fallbackModel || '无备用模型',
-      retrievalSummary: `Top K ${config.topK} / 阈值 ${config.similarityThreshold} / ${config.rerankerEnabled ? '重排序开启' : '重排序关闭'}`,
+      retrievalSummary: `Top K ${effectiveTopK} / 阈值 ${effectiveThreshold} / ${effectiveReranker ? '重排序开启' : '重排序关闭'}`,
       aiSuggestAllowed: config.aiSuggestAllowed,
       humanSendAllowed: config.humanSendAllowed,
       manualReviewRequired: config.manualReviewRequired,
@@ -132,7 +137,6 @@ export function buildGuardrailDecision(
     : scenario === 'Shipping'
     ? 'Medium'
     : 'Low';
-
   return {
     autoSend: 'disabled',
     aiPermission,

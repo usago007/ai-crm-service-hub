@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
-import type { CustomerProfile, ListQuery, Message, Order, PagedResult, ReplyDraft, ReviewDecision, ServiceTicket, TicketAction, TicketFilters } from '../types';
+import type { CustomerProfile, ListQuery, Message, Order, PagedResult, ReplyDraft, ReplyTemplate, ReviewDecision, ServiceTicket, TicketAction, TicketFilters } from '../types';
 import { useT } from '../i18n';
 import { Badge } from '../components/common/Badge';
 import { Pagination } from '../components/common/Pagination';
 import { Button } from '../components/common/Button';
 import { DetailPanel, EmptyState, PanelCard, inputCls } from '../components/common/PageChrome';
-import { AlertTriangle, Bot, CheckSquare, ChevronDown, ChevronUp, Save, Send, SlidersHorizontal } from 'lucide-react';
-import { displayChannel, displayFulfillmentStatus, displayIssueType, displayLanguage, displayPaymentStatus, displayReviewStatus, displayRiskLevel, displayTicketStatus, displayWorkflow } from '../utils/display';
+import { AlertTriangle, Bot, CheckSquare, ChevronDown, ChevronUp, FileText, Save, Send, SlidersHorizontal } from 'lucide-react';
+import { displayChannel, displayFulfillmentStatus, displayIssueType, displayLanguage, displayPaymentStatus, displayReviewStatus, displayRiskLevel, displayScenario, displayTicketStatus, displayWorkflow } from '../utils/display';
 import { useMemo, useState } from 'react';
 
 interface CustomerServiceProps {
@@ -31,6 +31,7 @@ interface CustomerServiceProps {
   onCloseTicket: (ticketId: string) => void;
   onReview: (ticketId: string, decision: 'approved' | 'rejected' | 'escalated') => void;
   onRunAction: (ticketId: string, actionId: string) => void;
+  replyTemplates: ReplyTemplate[];
 }
 
 export function CustomerService({
@@ -55,6 +56,7 @@ export function CustomerService({
   onCloseTicket,
   onReview,
   onRunAction,
+  replyTemplates,
 }: CustomerServiceProps) {
   const { t } = useT();
   const [showConversation, setShowConversation] = useState(false);
@@ -62,6 +64,7 @@ export function CustomerService({
   const [showRagEvidence, setShowRagEvidence] = useState(false);
   const [showSourceTrace, setShowSourceTrace] = useState(false);
   const [queueFilterOpen, setQueueFilterOpen] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const activeTicket = selectedTicketId ? result.items.find(item => item.id === selectedTicketId) ?? result.items[0] ?? null : result.items[0] ?? null;
   const activeCustomer = customers.find(item => item.id === activeTicket?.customerId) ?? null;
   const activeOrder = orders.find(item => item.customerId === activeTicket?.customerId) ?? null;
@@ -232,7 +235,6 @@ export function CustomerService({
               const statusBadges: Array<{ label: string; variant: 'gray' | 'yellow' | 'red' | 'green' }> = [
                 { label: displayRiskLevel(ticket.riskLevel), variant: ticket.riskLevel === 'High' ? 'red' : ticket.riskLevel === 'Medium' ? 'yellow' : 'green' as const },
                 { label: review?.status === 'pending' ? '待复核' : displayTicketStatus(ticket.status), variant: review?.status === 'pending' ? 'yellow' as const : 'gray' as const },
-                { label: formatSlaStatus(ticket.sla), variant: slaVariant(ticket.sla) },
               ];
               return (
                 <div
@@ -250,6 +252,21 @@ export function CustomerService({
                       <Badge key={item.label} variant={item.variant}>{item.label}</Badge>
                     ))}
                   </div>
+                  {(() => {
+                    const diffMs = new Date(ticket.sla).getTime() - Date.now();
+                    const windowMs = 72 * 60 * 60 * 1000;
+                    const pct = Math.max(0, Math.min(100, (diffMs / windowMs) * 100));
+                    const barColor = pct > 50 ? 'bg-emerald-500' : pct > 25 ? 'bg-amber-500' : 'bg-rose-500';
+                    const lbl = diffMs <= 0 ? '超时' : diffMs < 3_600_000 ? `${Math.round(diffMs / 60_000)}m` : diffMs < 86_400_000 ? `${Math.round(diffMs / 3_600_000)}h` : `${Math.ceil(diffMs / 86_400_000)}d`;
+                    return (
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <div className="flex-1 h-1 rounded-full bg-[var(--color-border-light)] overflow-hidden">
+                          <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className={`text-[10px] tabular-nums ${diffMs <= 0 ? 'text-rose-600' : 'text-[var(--color-text-light)]'}`}>{lbl}</span>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             }) : (
@@ -272,6 +289,48 @@ export function CustomerService({
               <div className="px-4 py-4 border-b border-[var(--color-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(255,255,255,0.48))]">
                 <div className="text-[18px] font-semibold tracking-[-0.02em]">{activeTicket.id} · {displayIssueType(activeTicket.issueType)}</div>
                 <div className="text-sm text-[var(--color-text-secondary)] mt-1">{statusSummary}</div>
+                {(() => {
+                  const diffMs = new Date(activeTicket.sla).getTime() - Date.now();
+                  const totalWindowMs = 72 * 60 * 60 * 1000;
+                  const pct = Math.max(0, Math.min(100, (diffMs / totalWindowMs) * 100));
+                  const barColor = pct > 50 ? 'bg-emerald-500' : pct > 25 ? 'bg-amber-500' : 'bg-rose-500';
+                  const label = diffMs <= 0 ? '已超时' : diffMs < 3_600_000 ? `${Math.round(diffMs / 60_000)}m` : diffMs < 86_400_000 ? `${Math.round(diffMs / 3_600_000)}h` : `${Math.ceil(diffMs / 86_400_000)}d`;
+                  return (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-[11px] text-[var(--color-text-light)]">SLA</span>
+                      <div className="flex-1 max-w-[140px] h-1.5 rounded-full bg-[var(--color-border-light)] overflow-hidden">
+                        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className={`text-[11px] tabular-nums ${diffMs <= 0 ? 'text-rose-600 font-semibold' : 'text-[var(--color-text-secondary)]'}`}>{label}</span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Workflow progress */}
+              <div className="px-4 py-3 border-b border-[var(--color-border-light)] bg-[rgba(255,255,255,0.42)] overflow-x-auto">
+                <div className="flex items-center justify-between min-w-[560px]">
+                  {(['triage', 'retrieve', 'draft', 'review', 'execute', 'follow-up', 'resolved'] as const).map((stage, index, arr) => {
+                    const currentIndex = arr.indexOf(activeTicket.workflowStage);
+                    const isActive = index <= currentIndex;
+                    const isCurrent = index === currentIndex;
+                    return (
+                      <div key={stage} className="flex items-center flex-1">
+                        <div className="flex flex-col items-center">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${isCurrent ? 'bg-[var(--color-primary)] text-white shadow-[0_0_0_4px_rgba(179,92,32,0.2)]' : isActive ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--color-border-light)] text-[var(--color-text-light)]'}`}>
+                            {index + 1}
+                          </div>
+                          <div className={`text-[9px] mt-1 whitespace-nowrap ${isCurrent ? 'text-[var(--color-primary)] font-semibold' : isActive ? 'text-[var(--color-text)]' : 'text-[var(--color-text-light)]'}`}>
+                            {displayWorkflow(stage)}
+                          </div>
+                        </div>
+                        {index < arr.length - 1 ? (
+                          <div className={`flex-1 h-[2px] mx-1 mt-[-16px] ${index < currentIndex ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border-light)]'}`} />
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -334,6 +393,37 @@ export function CustomerService({
                       onChange={e => onReplyTextChange(e.target.value)}
                       placeholder={activeDraft.content}
                     />
+                    <div className="mt-3 relative">
+                      <Button size="sm" variant="secondary" onClick={() => setShowTemplatePicker(prev => !prev)}>
+                        <FileText size={14} />
+                        回复模板
+                        {showTemplatePicker ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </Button>
+                      {showTemplatePicker ? (
+                        <>
+                          <button type="button" aria-label="关闭模板面板" className="fixed inset-0 z-10 cursor-default" onClick={() => setShowTemplatePicker(false)} />
+                          <div className="absolute left-0 top-[calc(100%+8px)] z-20 w-[380px] max-h-64 overflow-y-auto rounded-[16px] border border-[var(--color-border)] bg-white shadow-[0_12px_32px_rgba(15,23,42,0.12)]">
+                            {replyTemplates.length > 0 ? replyTemplates.map(tpl => (
+                              <button
+                                key={tpl.id}
+                                type="button"
+                                className="w-full text-left px-4 py-3 text-sm border-b border-[var(--color-border-light)] hover:bg-[rgba(179,92,32,0.06)] transition-colors last:border-b-0"
+                                onClick={() => { onReplyTextChange(tpl.content); setShowTemplatePicker(false); }}
+                              >
+                                <div className="font-medium">{tpl.name}</div>
+                                <div className="flex gap-1 mt-1">
+                                  <Badge variant="blue">{displayScenario(tpl.scenario)}</Badge>
+                                  <Badge variant="gray">{displayLanguage(tpl.language)}</Badge>
+                                  <Badge variant="gray">{tpl.tone}</Badge>
+                                </div>
+                              </button>
+                            )) : (
+                              <div className="p-4 text-xs text-[var(--color-text-secondary)]">暂无可用模板</div>
+                            )}
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
                     <div className="mt-3 rounded-[14px] border border-[var(--color-border-light)] bg-[var(--color-bg)] px-3 py-2.5 text-sm">
                       <span className="font-medium">发送判定：</span>
                       <span className={canSend ? 'text-emerald-700' : 'text-rose-700'}>{sendDecision.label}</span>
@@ -548,26 +638,6 @@ function highestCitation(draft: ReplyDraft) {
     const parsed = Number(item.match.replace('%', ''));
     return Number.isFinite(parsed) ? Math.max(max, parsed) : max;
   }, 0);
-}
-
-function formatSlaStatus(sla: string) {
-  const diffMs = new Date(sla).getTime() - Date.now();
-  const diffHours = Math.round(diffMs / (1000 * 60 * 60));
-
-  if (diffHours <= 0) return '已超时';
-  if (diffHours < 24) return `${diffHours}h left`;
-
-  return `${Math.ceil(diffHours / 24)}d left`;
-}
-
-function slaVariant(sla: string): 'gray' | 'yellow' | 'red' {
-  const diffMs = new Date(sla).getTime() - Date.now();
-  const diffHours = Math.round(diffMs / (1000 * 60 * 60));
-
-  if (diffHours <= 0) return 'red';
-  if (diffHours <= 24) return 'yellow';
-
-  return 'gray';
 }
 
 function buildReviewChecklist({

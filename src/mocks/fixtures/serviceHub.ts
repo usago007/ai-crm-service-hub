@@ -312,10 +312,10 @@ function buildOrders(customers: CustomerProfile[]): Order[] {
 function buildKnowledgeDocuments(): KnowledgeDocument[] {
   const scenarios = ['Shipping', 'Refund', 'Complaint', 'Payment', 'Address Change', 'Product Inquiry', 'VIP', 'Return'];
   const languages = ['EN', 'ZH', 'DE', 'FR', 'ES', 'JA'];
-  return Array.from({ length: 28 }, (_, index) => {
+  const baseDocs = Array.from({ length: 28 }, (_, index) => {
     const scenario = scenarios[index % scenarios.length];
     const language = languages[index % languages.length];
-    const publishStatus = index % 11 === 0 ? 'version_conflict' : index % 7 === 0 ? 'expired' : index % 5 === 0 ? 'indexed' : 'published';
+    const publishStatus: KnowledgeDocument['publishStatus'] = index % 11 === 0 ? 'version_conflict' : index % 7 === 0 ? 'expired' : index % 5 === 0 ? 'indexed' : 'published';
     return {
       id: pad('DOC', index + 1),
       name: `${displayScenario(scenario)}手册 v${1 + (index % 3)}.${index % 10}.${index % 5}.${language}.pdf`,
@@ -333,6 +333,18 @@ function buildKnowledgeDocuments(): KnowledgeDocument[] {
       parseError: publishStatus === 'version_conflict' ? '当前版本与草稿版本的审批元数据冲突。' : publishStatus === 'expired' ? '文档已过期，应从检索中剔除。' : undefined,
     };
   });
+
+  // Extra docs for demo data richness (diverse health states)
+  const extraDocs: KnowledgeDocument[] = [
+    { id: 'DOC-029', name: '东南亚物流时效与赔付政策 v2.1.EN.pdf', sourceType: 'PDF', knowledgeType: '政策文档', scenario: 'Shipping', language: 'EN', owner: '物流运营', version: 'v2.1', publishStatus: 'published' as const, effectiveDate: '2026-05-12', chunkCount: 22, vectorCount: 22, coverageScore: 88 },
+    { id: 'DOC-030', name: '退款审批权限矩阵 v1.0.ZH.xlsx', sourceType: 'XLSX', knowledgeType: '业务规则', scenario: 'Refund', language: 'ZH', owner: '财务', version: 'v1.0', publishStatus: 'published' as const, effectiveDate: '2026-05-20', chunkCount: 16, vectorCount: 16, coverageScore: 91 },
+    { id: 'DOC-031', name: '支付异常处理流程 v3.2.DE.docx', sourceType: 'DOCX', knowledgeType: '政策文档', scenario: 'Payment', language: 'DE', owner: '支付团队', version: 'v3.2', publishStatus: 'indexed' as const, effectiveDate: '2026-04-28', chunkCount: 28, vectorCount: 26, coverageScore: 65 },
+    { id: 'DOC-032', name: '投诉赔偿审批清单 v2.0.ZH.pdf', sourceType: 'PDF', knowledgeType: '业务规则', scenario: 'Complaint', language: 'ZH', owner: '风控', version: 'v2.0', publishStatus: 'version_conflict' as const, effectiveDate: '2026-05-01', chunkCount: 18, vectorCount: 0, coverageScore: 0, parseError: '版本 v2.0 与草稿 v2.1 存在审批人冲突，需人工确认后再发布。' },
+    { id: 'DOC-033', name: '2024 年退款政策（已过期）v1.0.EN.pdf', sourceType: 'PDF', knowledgeType: '政策文档', scenario: 'Refund', language: 'EN', owner: '知识运营', version: 'v1.0', publishStatus: 'expired' as const, effectiveDate: '2024-06-15', chunkCount: 14, vectorCount: 0, coverageScore: 22, parseError: '文档已过期，应归档并从活跃检索中剔除。' },
+    { id: 'DOC-034', name: '跨境物流常见问题FAQ v1.5.ZH.html', sourceType: 'HTML', knowledgeType: 'FAQ', scenario: 'Shipping', language: 'ZH', owner: '客服', version: 'v1.5', publishStatus: 'published' as const, effectiveDate: '2026-03-10', chunkCount: 32, vectorCount: 30, coverageScore: 45 },
+  ];
+
+  return [...baseDocs, ...extraDocs];
 }
 
 function buildKnowledgeChunks(documents: KnowledgeDocument[]): KnowledgeChunk[] {
@@ -623,11 +635,11 @@ const capabilityPipeline: CapabilityPipelineNode[] = [
 ];
 
 const scenarioModelConfigs: ScenarioModelConfig[] = [
-  { id: 'SCN-001', scenario: 'Shipping', name: '物流标准回复策略', version: 'v2.3', primaryModel: 'gpt-4o-mini', fallbackModel: 'gpt-4.1-mini', modelChannel: '稳定版', temperature: 0.2, maxOutputTokens: 320, contextWindow: 16000, queryRewriteEnabled: true, rerankerEnabled: true, topK: 5, similarityThreshold: 0.78, citationRequired: true, aiSuggestAllowed: true, manualReviewRequired: false, humanSendAllowed: true, blockedClaims: ['不得编造预计送达日期', '不得承诺赔偿'], lowConfidenceFallback: '转人工补写', noMatchFallback: '转人工编写回复', sensitiveCaseFallback: '升级物流主管复核', updatedAt: '2026-05-22 13:40' },
+  { id: 'SCN-001', scenario: 'Shipping', name: '物流标准回复策略', version: 'v2.3', primaryModel: 'gpt-4o-mini', fallbackModel: 'gpt-4.1-mini', modelChannel: '稳定版', temperature: 0.2, maxOutputTokens: 320, contextWindow: 16000, queryRewriteEnabled: true, rerankerEnabled: true, topK: 5, similarityThreshold: 0.78, citationRequired: true, aiSuggestAllowed: true, manualReviewRequired: false, humanSendAllowed: true, blockedClaims: ['不得编造预计送达日期', '不得承诺赔偿'], lowConfidenceFallback: '转人工补写', noMatchFallback: '转人工编写回复', sensitiveCaseFallback: '升级物流主管复核', updatedAt: '2026-05-22 13:40', systemPrompt: 'You are a cross-border e-commerce customer service agent for an independent online store. Your primary role is to assist customers with logistics, order tracking, delivery delays, and shipping-related inquiries.\n\nRules:\n- Always reference the specific order ID and tracking information when available.\n- Do NOT fabricate estimated delivery dates or promise compensation without policy support.\n- If tracking has not updated for more than 5 business days, escalate to the logistics team.\n- Use a helpful, professional tone. Acknowledge the customer\'s frustration before offering solutions.\n- Cite retrieved knowledge documents to support your advice.' },
   { id: 'SCN-002', scenario: 'Refund', name: '退款复核策略', version: 'v3.1', primaryModel: 'gpt-4.1-mini', fallbackModel: 'gpt-4o-mini', modelChannel: '稳定版', temperature: 0.1, maxOutputTokens: 260, contextWindow: 12000, queryRewriteEnabled: true, rerankerEnabled: true, topK: 6, similarityThreshold: 0.8, citationRequired: true, aiSuggestAllowed: true, manualReviewRequired: true, humanSendAllowed: false, blockedClaims: ['不得批准退款', '不得承诺到账时间'], lowConfidenceFallback: '进入人工复核', noMatchFallback: '要求补充证据后转人工', sensitiveCaseFallback: '升级主管审批', updatedAt: '2026-05-22 13:40' },
   { id: 'SCN-003', scenario: 'Product Inquiry', name: '商品咨询转化策略', version: 'v1.8', primaryModel: 'gpt-4o-mini', fallbackModel: 'gpt-4.1-mini', modelChannel: '稳定版', temperature: 0.35, maxOutputTokens: 360, contextWindow: 14000, queryRewriteEnabled: true, rerankerEnabled: true, topK: 4, similarityThreshold: 0.74, citationRequired: true, aiSuggestAllowed: true, manualReviewRequired: false, humanSendAllowed: true, blockedClaims: ['不得编造商品规格'], lowConfidenceFallback: '转人工核验规格', noMatchFallback: '回退到商品模板', sensitiveCaseFallback: '升级商品团队确认', updatedAt: '2026-05-22 13:40' },
   { id: 'SCN-004', scenario: 'Payment', name: '支付恢复策略', version: 'v2.0', primaryModel: 'gpt-4o-mini', fallbackModel: 'gpt-4.1-mini', modelChannel: '稳定版', temperature: 0.2, maxOutputTokens: 280, contextWindow: 12000, queryRewriteEnabled: true, rerankerEnabled: false, topK: 4, similarityThreshold: 0.76, citationRequired: true, aiSuggestAllowed: true, manualReviewRequired: false, humanSendAllowed: true, blockedClaims: ['不得伪造支付结果'], lowConfidenceFallback: '转人工排查支付渠道', noMatchFallback: '回退到支付 FAQ', sensitiveCaseFallback: '升级支付运营', updatedAt: '2026-05-22 13:40' },
-  { id: 'SCN-005', scenario: 'Complaint', name: '投诉升级策略', version: 'v3.4', primaryModel: 'gpt-4.1-mini', fallbackModel: 'gpt-4o-mini', modelChannel: '稳定版', temperature: 0.15, maxOutputTokens: 260, contextWindow: 18000, queryRewriteEnabled: true, rerankerEnabled: true, topK: 6, similarityThreshold: 0.82, citationRequired: true, aiSuggestAllowed: true, manualReviewRequired: true, humanSendAllowed: false, blockedClaims: ['不得关闭投诉', '不得承诺赔偿'], lowConfidenceFallback: '进入人工复核', noMatchFallback: '升级投诉主管', sensitiveCaseFallback: '升级法务与主管复核', updatedAt: '2026-05-22 13:40' },
+  { id: 'SCN-005', scenario: 'Complaint', name: '投诉升级策略', version: 'v3.4', primaryModel: 'gpt-4.1-mini', fallbackModel: 'gpt-4o-mini', modelChannel: '稳定版', temperature: 0.15, maxOutputTokens: 260, contextWindow: 18000, queryRewriteEnabled: true, rerankerEnabled: true, topK: 6, similarityThreshold: 0.82, citationRequired: true, aiSuggestAllowed: true, manualReviewRequired: true, humanSendAllowed: false, blockedClaims: ['不得关闭投诉', '不得承诺赔偿'], lowConfidenceFallback: '进入人工复核', noMatchFallback: '升级投诉主管', sensitiveCaseFallback: '升级法务与主管复核', updatedAt: '2026-05-22 13:40', systemPrompt: 'You are a senior customer service escalation specialist. Your role is to handle escalated complaints with empathy, precision, and strict adherence to company policy.\n\nRules:\n- NEVER close a complaint without supervisor approval.\n- NEVER promise compensation unless explicitly authorized by the compensation policy.\n- Always acknowledge the customer\'s frustration and validate their experience before offering solutions.\n- Escalate to legal or supervisor review for any complaint involving potential liability, chargebacks, or regulatory concerns.\n- Document every action taken and the rationale behind it for audit purposes.' },
   { id: 'SCN-006', scenario: 'Compensation', name: '赔偿高敏策略', version: 'v2.5', primaryModel: 'gpt-4.1-mini', fallbackModel: 'gpt-4o-mini', modelChannel: '稳定版', temperature: 0.1, maxOutputTokens: 220, contextWindow: 12000, queryRewriteEnabled: true, rerankerEnabled: true, topK: 6, similarityThreshold: 0.83, citationRequired: true, aiSuggestAllowed: true, manualReviewRequired: true, humanSendAllowed: false, blockedClaims: ['不得承诺赔偿金额', '不得绕过主管审批'], lowConfidenceFallback: '升级主管审批', noMatchFallback: '转人工赔偿评估', sensitiveCaseFallback: '升级法务复核', updatedAt: '2026-05-22 13:40' },
   { id: 'SCN-007', scenario: 'Chargeback', name: '拒付争议策略', version: 'v1.9', primaryModel: 'gpt-4.1-mini', fallbackModel: 'gpt-4o-mini', modelChannel: '稳定版', temperature: 0.1, maxOutputTokens: 220, contextWindow: 12000, queryRewriteEnabled: true, rerankerEnabled: true, topK: 6, similarityThreshold: 0.84, citationRequired: true, aiSuggestAllowed: true, manualReviewRequired: true, humanSendAllowed: false, blockedClaims: ['不得承认拒付责任', '不得承诺退款'], lowConfidenceFallback: '升级拒付专员', noMatchFallback: '转人工争议处理', sensitiveCaseFallback: '升级法务复核', updatedAt: '2026-05-22 13:40' },
 ];
@@ -1088,6 +1100,11 @@ const feedbackLoop: FeedbackLoopRecord[] = [
     status: 'new',
     updatedAt: '2026-05-22 11:05',
   },
+  { id: 'FDB-004', source: '护栏拦截', scenario: '投诉', signal: '投诉场景中 AI 草稿试图承诺赔偿，护栏正确拦截。', action: '更新投诉场景 blockedClaims，强化赔偿承诺检测规则。', owner: '风控', status: 'new', updatedAt: '2026-05-27 14:30' },
+  { id: 'FDB-005', source: 'QA 评测', scenario: '物流', signal: '泰语物流模板未覆盖热带气候导致的运输延误场景。', action: '新增东南亚物流本地化知识文档，补充气候相关 FAQ。', owner: '知识运营', status: 'triaged', updatedAt: '2026-05-26 09:15' },
+  { id: 'FDB-006', source: '客服编辑', scenario: '退款', signal: '客服多次手动修改退款回复中的退款时效说明，与政策文档不一致。', action: '更新退款政策文档 v2.1，统一退款时效口径为 7-14 工作日。', owner: '知识运营', status: 'shipped', updatedAt: '2026-05-25 16:40' },
+  { id: 'FDB-007', source: '客户投诉', scenario: '支付', signal: '客户投诉支付失败后客服回复模板未包含替代支付方式建议。', action: '在支付异常处理流程中增加替代支付方案引导段落。', owner: '产品支持', status: 'triaged', updatedAt: '2026-05-25 11:20' },
+  { id: 'FDB-008', source: 'QA 评测', scenario: '商品咨询', signal: '德语商品规格回复中单位制式(公制/英制)混淆导致信息错误。', action: '在 Prompt 模板中增加区域与度量单位约束规则。', owner: '商品团队', status: 'new', updatedAt: '2026-05-28 08:00' },
 ];
 
 const auditLogs: AuditLogRecord[] = [
@@ -1171,6 +1188,12 @@ const auditLogs: AuditLogRecord[] = [
     timestamp: '2026-05-22 12:44',
     detail: '当前草稿没有注入有效 retrieved chunks，发送链路被强制中断。',
   },
+  { id: 'AUD-009', ticketId: 'SYSTEM', eventType: 'Config change', actor: '知识运营', outcome: '全局 RAG 检索配置已更新。', riskLevel: 'Low', timestamp: '2026-05-26 10:15', detail: 'Top K 从 5 调整为 7，重排序从关闭切换为开启，以提升高敏场景的检索精度。' },
+  { id: 'AUD-010', ticketId: 'SYSTEM', eventType: 'Config change', actor: 'AI 辅助运行时', outcome: '物流场景策略已更新。', riskLevel: 'Low', timestamp: '2026-05-25 15:40', detail: '物流场景（SCN-001）主模型从 gpt-4o-mini 切换为 gpt-4.1-mini，temperature 从 0.3 降为 0.2。' },
+  { id: 'AUD-011', ticketId: 'SYSTEM', eventType: 'Config change', actor: '知识运营', outcome: '知识库配置覆盖已保存。', riskLevel: 'Low', timestamp: '2026-05-24 09:30', detail: 'KB-OPS（履约与退款知识库）chunkSize 从全局默认 600 覆盖为 500。' },
+  { id: 'AUD-012', ticketId: 'SYSTEM', eventType: 'KB created', actor: '知识运营', outcome: '新知识库已创建。', riskLevel: 'Low', timestamp: '2026-05-27 11:00', detail: '创建了「东南亚物流专项库」，覆盖场景：物流、退款，chunkSize=300，topK=8。' },
+  { id: 'AUD-013', ticketId: 'SYSTEM', eventType: 'KB archived', actor: '知识运营', outcome: '知识库已归档。', riskLevel: 'Low', timestamp: '2026-05-28 09:00', detail: '「VIP 客户专属知识库」因内容已合并至主知识库，已被归档。' },
+  { id: 'AUD-014', ticketId: 'SYSTEM', eventType: 'Scenario config change', actor: '风控', outcome: '投诉场景禁止声明已更新。', riskLevel: 'Medium', timestamp: '2026-05-26 16:20', detail: '投诉场景（SCN-005）blockedClaims 中新增「不得建议客户撤销信用卡争议(chargeback)」。' },
 ];
 
 function mapActivityScope(action: string) {

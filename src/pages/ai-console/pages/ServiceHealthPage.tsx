@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Badge } from '../../../components/common/Badge';
 import { Button } from '../../../components/common/Button';
 import { DataTable, PageHeader } from '../shared';
+import { inputCls } from '../sharedUtils';
 import type { AIConsoleProps } from '../types';
 import type { ServiceHealthStatus } from '../../../types';
 import { displayScenario } from '../../../utils/display';
@@ -60,6 +62,16 @@ function commonValueLabel(value: string) {
   if (value === 'real-time') return '实时';
   if (value === 'Every 15 minutes') return '每 15 分钟';
   return value;
+}
+
+function DependencyNode({ label, status, size = 'md' }: { label: string; status: ServiceHealthStatus; size?: 'sm' | 'md' }) {
+  const colors = status === 'healthy' ? 'border-[var(--color-success)] bg-[rgba(5,150,105,0.08)] text-[var(--color-success)]' : status === 'degraded' ? 'border-[var(--color-warning)] bg-[rgba(234,179,8,0.08)] text-[var(--color-warning)]' : 'border-[var(--color-danger)] bg-[rgba(239,68,68,0.08)] text-[var(--color-danger)]';
+  return (
+    <div className={`inline-flex items-center gap-1.5 rounded-[14px] border px-3 py-2 ${colors} ${size === 'sm' ? 'text-xs' : 'text-sm font-medium'}`}>
+      <div className={`rounded-full ${status === 'healthy' ? 'bg-[var(--color-success)]' : status === 'degraded' ? 'bg-[var(--color-warning)]' : 'bg-[var(--color-danger)]'} ${size === 'sm' ? 'w-1.5 h-1.5' : 'w-2 h-2'}`} />
+      {label}
+    </div>
+  );
 }
 
 function booleanLabel(value: boolean, yes = '是', no = '否') {
@@ -161,6 +173,17 @@ export function ServiceHealthPage({
   const failedConnectorCount = serviceHealth.connectors.filter(item => item.status !== 'healthy').length;
   const criticalDiagnostics = serviceHealth.diagnostics.filter(item => item.severity === 'critical').length;
   const displayedError = serviceHealth.recentErrors[0] ?? null;
+
+  const [alertThresholds, setAlertThresholds] = useState({ errorRate: 5, latencyMs: 3000, rateLimit: 80 });
+  const [alertDirty, setAlertDirty] = useState(false);
+
+  const healthHistory = [
+    { checkedAt: serviceHealth.lastHealthCheck.checkedAt, status: serviceHealth.lastHealthCheck.overallStatus, summary: serviceHealth.lastHealthCheck.summary, findings: serviceHealth.lastHealthCheck.findings.length },
+    { checkedAt: '2026-05-27 09:35', status: 'healthy' as const, summary: '所有核心依赖运行正常，未检测到明显异常。', findings: 0 },
+    { checkedAt: '2026-05-26 16:12', status: 'degraded' as const, summary: '嵌入服务队列出现短暂积压，已自动恢复。', findings: 2 },
+    { checkedAt: '2026-05-26 10:48', status: 'healthy' as const, summary: '定期全面巡检完成，所有指标正常。', findings: 1 },
+    { checkedAt: '2026-05-25 14:22', status: 'degraded' as const, summary: '向量数据库查询延迟上升，建议关注并发压力。', findings: 3 },
+  ];
 
   return (
     <div className="space-y-5">
@@ -416,6 +439,122 @@ export function ServiceHealthPage({
             </tr>
           ))}
         </DataTable>
+      </SurfaceCard>
+
+      <div className="grid grid-cols-2 gap-5 max-[1200px]:grid-cols-1">
+        <SurfaceCard
+          title="告警阈值配置"
+          meta={['调整后点击保存生效，当前仅作用于本地会话。']}
+          action={
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => { setAlertThresholds({ errorRate: 5, latencyMs: 3000, rateLimit: 80 }); setAlertDirty(false); }}>重置</Button>
+              <Button size="sm" disabled={!alertDirty} onClick={() => setAlertDirty(false)}>保存</Button>
+            </div>
+          }
+        >
+          <div className="grid grid-cols-3 gap-3 max-[900px]:grid-cols-1">
+            <div className="rounded-[18px] border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.72)] p-4">
+              <div className="text-[11px] tracking-[0.14em] uppercase text-[var(--color-text-light)] mb-3">错误率阈值</div>
+              <div className="flex items-center gap-2">
+                <input type="number" className={inputCls} value={alertThresholds.errorRate} onChange={e => { setAlertThresholds(prev => ({ ...prev, errorRate: Number(e.target.value) })); setAlertDirty(true); }} />
+                <span className="text-xs text-[var(--color-text-secondary)]">%</span>
+              </div>
+              <div className="mt-2 text-xs text-[var(--color-text-secondary)]">当前：{serviceHealth.llmStatus.errorRate}%</div>
+            </div>
+            <div className="rounded-[18px] border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.72)] p-4">
+              <div className="text-[11px] tracking-[0.14em] uppercase text-[var(--color-text-light)] mb-3">延迟阈值</div>
+              <div className="flex items-center gap-2">
+                <input type="number" className={inputCls} value={alertThresholds.latencyMs} onChange={e => { setAlertThresholds(prev => ({ ...prev, latencyMs: Number(e.target.value) })); setAlertDirty(true); }} />
+                <span className="text-xs text-[var(--color-text-secondary)]">ms</span>
+              </div>
+              <div className="mt-2 text-xs text-[var(--color-text-secondary)]">当前：{serviceHealth.llmStatus.avgLatencyMs} ms</div>
+            </div>
+            <div className="rounded-[18px] border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.72)] p-4">
+              <div className="text-[11px] tracking-[0.14em] uppercase text-[var(--color-text-light)] mb-3">限流使用率阈值</div>
+              <div className="flex items-center gap-2">
+                <input type="number" className={inputCls} value={alertThresholds.rateLimit} onChange={e => { setAlertThresholds(prev => ({ ...prev, rateLimit: Number(e.target.value) })); setAlertDirty(true); }} />
+                <span className="text-xs text-[var(--color-text-secondary)]">%</span>
+              </div>
+              <div className="mt-2 text-xs text-[var(--color-text-secondary)]">当前：{serviceHealth.llmStatus.rateLimitUsage}%</div>
+            </div>
+          </div>
+        </SurfaceCard>
+
+        <SurfaceCard
+          title="健康检查历史"
+          meta={[`最近检查：${serviceHealth.lastHealthCheck.checkedAt}`]}
+        >
+          <div className="space-y-0">
+            {healthHistory.map((item, index) => (
+              <div key={item.checkedAt} className="flex gap-4">
+                <div className="flex flex-col items-center">
+                  <div className={`w-3 h-3 rounded-full border-2 ${item.status === 'healthy' ? 'bg-[var(--color-success)] border-[var(--color-success)]' : item.status === 'degraded' ? 'bg-[var(--color-warning)] border-[var(--color-warning)]' : 'bg-[var(--color-danger)] border-[var(--color-danger)]'} shrink-0`} />
+                  {index < healthHistory.length - 1 ? <div className="w-0.5 flex-1 bg-[var(--color-border)] my-1" /> : null}
+                </div>
+                <div className={`pb-4 ${index === healthHistory.length - 1 ? '' : ''}`}>
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm font-medium">{item.checkedAt}</div>
+                    <Badge variant={item.status === 'healthy' ? 'green' : item.status === 'degraded' ? 'yellow' : 'red'} className="rounded-[8px] px-2 py-0.5 text-[10px]">
+                      {statusLabel(item.status)}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-[var(--color-text-secondary)] mt-1">{item.summary}</div>
+                  {item.findings > 0 ? (
+                    <div className="text-[11px] text-[var(--color-text-light)] mt-1">{item.findings} 项发现</div>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </SurfaceCard>
+      </div>
+
+      <SurfaceCard
+        title="服务依赖关系"
+        meta={['展示核心服务之间的调用链路与依赖方向。']}
+      >
+        <div className="space-y-4">
+          <div className="rounded-[22px] border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.66)] p-5">
+            <div className="flex items-center gap-4 flex-wrap max-[900px]:flex-col max-[900px]:items-start">
+              <DependencyNode label="LLM API" status={serviceHealth.llmStatus.status} />
+              <div className="text-[var(--color-text-light)] text-lg max-[900px]:rotate-90">→</div>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <DependencyNode label="职能模型 (7)" status={serviceHealth.functionalModelStatuses.filter(item => item.status !== 'healthy').length > 0 ? 'degraded' : 'healthy'} size="sm" />
+                  <div className="text-[var(--color-text-light)] text-sm">→</div>
+                  <DependencyNode label="场景模型 (7)" status={serviceHealth.scenarioModelStatuses.filter(item => item.status !== 'healthy').length > 0 ? 'degraded' : 'healthy'} size="sm" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 max-[900px]:grid-cols-1">
+            <div className="rounded-[22px] border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.66)] p-4">
+              <div className="flex items-center gap-3">
+                <DependencyNode label="Embedding" status={serviceHealth.embeddingStatus.status} size="sm" />
+                <div className="text-[var(--color-text-light)]">→</div>
+                <DependencyNode label="Vector DB" status={serviceHealth.vectorDbStatus.indexStatus === 'ready' ? 'healthy' : 'degraded'} size="sm" />
+              </div>
+              <div className="mt-3 text-xs text-[var(--color-text-secondary)]">向量化与检索链路</div>
+            </div>
+            <div className="rounded-[22px] border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.66)] p-4">
+              <div className="flex items-center gap-3 flex-wrap">
+                <DependencyNode label="Connectors" status={failedConnectorCount > 0 ? 'degraded' : 'healthy'} size="sm" />
+                <div className="text-[var(--color-text-light)]">→</div>
+                <DependencyNode label="Knowledge DB" status={serviceHealth.ingestionQueue.queueStatus} size="sm" />
+              </div>
+              <div className="mt-3 text-xs text-[var(--color-text-secondary)]">数据接入与知识资产</div>
+            </div>
+            <div className="rounded-[22px] border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.66)] p-4">
+              <div className="flex items-center gap-3 flex-wrap">
+                <DependencyNode label="Ingestion Queue" status={serviceHealth.ingestionQueue.queueStatus} size="sm" />
+                <div className="text-[var(--color-text-light)]">→</div>
+                <DependencyNode label="Index Pipeline" status={serviceHealth.vectorDbStatus.indexStatus === 'ready' ? 'healthy' : serviceHealth.vectorDbStatus.indexStatus === 'building' ? 'degraded' : 'down'} size="sm" />
+              </div>
+              <div className="mt-3 text-xs text-[var(--color-text-secondary)]">文档接入与索引发布</div>
+            </div>
+          </div>
+        </div>
       </SurfaceCard>
 
       <SurfaceCard

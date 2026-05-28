@@ -274,6 +274,10 @@ export interface KnowledgeBaseRecord {
   source: KnowledgeBaseSource;
   status: KnowledgeBaseStatus;
   documentIds: string[];
+  configOverrides?: {
+    chunking?: { strategy?: string; chunkSize?: number; chunkOverlap?: number };
+    retrieval?: { topK?: number; similarityThreshold?: number };
+  };
 }
 
 export interface KnowledgeWizardDraft {
@@ -353,6 +357,7 @@ export interface PromptAssemblyConfig {
   includeRiskPolicy: boolean;
   includeBlockedClaims: boolean;
   outputFormat: string;
+  defaultSystemPrompt?: string;
 }
 
 export interface RagConfigSnapshot {
@@ -436,6 +441,7 @@ export interface ScenarioModelConfig {
   humanSendAllowed: boolean;
   blockedClaims: string[];
   lowConfidenceFallback: string;
+  systemPrompt?: string;
   noMatchFallback: string;
   sensitiveCaseFallback: string;
   updatedAt: string;

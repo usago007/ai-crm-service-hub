@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { Badge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
@@ -16,7 +16,7 @@ import type {
   RagConfigSnapshot,
   RagTestRun,
 } from '../types';
-import { displayLanguage, displayScenario } from '../utils/display';
+import { displayLanguage, displayRiskLevel, displayScenario } from '../utils/display';
 import { displayStageStatus, inputCls, stageVariant } from './ai-console/sharedUtils';
 
 interface KnowledgeBaseProps {
@@ -33,7 +33,11 @@ interface KnowledgeBaseProps {
   ragTestRuns: RagTestRun[];
   jobs: Array<{ id: string; documentId?: string; documentName: string; status: string; detail: string }>;
   onIngestionAction: (documentId: string, action: 'view_parsed_text' | 'view_chunks' | 'rebuild_embedding' | 'publish' | 'disable') => Promise<{ parsedText?: string; chunks?: string[]; message: string }>;
-  onCreateKnowledgeBase: (name?: string) => void;
+  onCreateKnowledgeBase: (name: string, description?: string, tags?: string[]) => void;
+  onUpdateKnowledgeBaseMeta: (id: string, updates: { name?: string; description?: string; tags?: string[]; owner?: string }) => void;
+  onUpdateKnowledgeBaseOverrides: (id: string, configOverrides: KnowledgeBaseRecord['configOverrides']) => void;
+  onArchiveKnowledgeBase: (id: string) => void;
+  onCloneKnowledgeBase: (id: string) => void;
   onOpenKnowledgeBase: (id: string) => void;
   onBackToKnowledgeList: () => void;
   onKnowledgeDetailTabChange: (tab: KnowledgeDetailTab) => void;
@@ -105,6 +109,10 @@ export function KnowledgeBase({
   jobs,
   onIngestionAction,
   onCreateKnowledgeBase,
+  onUpdateKnowledgeBaseMeta,
+  onUpdateKnowledgeBaseOverrides,
+  onArchiveKnowledgeBase,
+  onCloneKnowledgeBase,
   onOpenKnowledgeBase,
   onBackToKnowledgeList,
   onKnowledgeDetailTabChange,
@@ -122,6 +130,24 @@ export function KnowledgeBase({
   const [documentSort, setDocumentSort] = useState<'latest' | 'name'>('latest');
   const [ingestionModalState, setIngestionModalState] = useState<{ title: string; lines: string[] } | null>(null);
   const [metadataModalOpen, setMetadataModalOpen] = useState(false);
+  const [retrievalExpandedRunId, setRetrievalExpandedRunId] = useState<string | null>(null);
+  const [kbSettingsOverrides, setKbSettingsOverrides] = useState(selectedKnowledgeBase?.configOverrides);
+  const [kbSettingsDirty, setKbSettingsDirty] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newKbName, setNewKbName] = useState('');
+  const [newKbDesc, setNewKbDesc] = useState('');
+  const [newKbTags, setNewKbTags] = useState('');
+  const [editMetaModalOpen, setEditMetaModalOpen] = useState(false);
+  const [editMetaName, setEditMetaName] = useState('');
+  const [editMetaDesc, setEditMetaDesc] = useState('');
+  const [editMetaTags, setEditMetaTags] = useState('');
+  const [editMetaOwner, setEditMetaOwner] = useState('');
+
+  // Sync local overrides when selectedKnowledgeBase changes (fix stale state on KB switch)
+  useEffect(() => {
+    setKbSettingsOverrides(selectedKnowledgeBase?.configOverrides);
+    setKbSettingsDirty(false);
+  }, [selectedKnowledgeBase?.id, selectedKnowledgeBase?.configOverrides]);
 
   const allTags = useMemo(
     () => Array.from(new Set(knowledgeBases.flatMap(item => item.tags))),
@@ -272,6 +298,7 @@ export function KnowledgeBase({
 
   function renderList() {
     return (
+      <>
       <div className="space-y-5">
         <SummaryHeader
           aside={
@@ -302,39 +329,44 @@ export function KnowledgeBase({
         <div className="grid grid-cols-[420px_repeat(2,minmax(300px,1fr))] gap-4 max-[1380px]:grid-cols-1">
           <button
             className="group min-h-[220px] rounded-[22px] border border-[var(--color-border)] bg-[linear-gradient(180deg,#F4F7FF_0%,#F8FAFC_100%)] text-left p-6 hover:border-[var(--color-primary)] transition-colors"
-            onClick={() => onCreateKnowledgeBase()}
+            onClick={() => { setNewKbName(''); setNewKbDesc(''); setNewKbTags(''); setShowCreateModal(true); }}
           >
             <div className="text-[36px] leading-none mb-8 text-[var(--color-primary)]">+</div>
             <div className="text-[15px] font-semibold">创建知识库</div>
-            <div className="mt-10 pt-5 border-t border-[var(--color-border)] text-[15px] font-medium text-[var(--color-text-secondary)]">连接外部知识库</div>
+            <div className="mt-3 text-[13px] text-[var(--color-text-secondary)]">创建空白知识库，后续可导入文档、配置检索策略。</div>
           </button>
 
           {filteredKnowledgeBases.map(base => (
-            <button
-              key={base.id}
-              className="min-h-[220px] rounded-[22px] border border-[var(--color-border)] bg-white text-left p-6 hover:border-[var(--color-primary)] hover:shadow-[0_20px_40px_rgba(15,23,42,0.06)] transition-all"
-              onClick={() => onOpenKnowledgeBase(base.id)}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  {renderKnowledgeIcon(base.icon)}
-                  <div>
-                    <div className="text-lg font-semibold leading-6">{base.name}</div>
-                    <div className="text-xs text-[var(--color-text-secondary)] mt-1">{base.owner} · 编辑于 {base.updatedAt}</div>
+            <div key={base.id}>
+              <button
+                className="w-full min-h-[220px] rounded-[22px] border border-[var(--color-border)] bg-white text-left p-6 hover:border-[var(--color-primary)] hover:shadow-[0_20px_40px_rgba(15,23,42,0.06)] transition-all"
+                onClick={() => onOpenKnowledgeBase(base.id)}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    {renderKnowledgeIcon(base.icon)}
+                    <div>
+                      <div className="text-lg font-semibold leading-6">{base.name}</div>
+                      <div className="text-xs text-[var(--color-text-secondary)] mt-1">{base.owner} · 编辑于 {base.updatedAt}</div>
+                    </div>
                   </div>
+                  <Badge variant={statusVariant(base.status)}>{statusLabel(base.status)}</Badge>
                 </div>
-                <Badge variant={statusVariant(base.status)}>{statusLabel(base.status)}</Badge>
+                <div className="text-[13px] text-[var(--color-text-secondary)] mt-5 min-h-[40px]">{base.description}</div>
+                <div className="mt-4 flex gap-2 flex-wrap">
+                  {base.tags.map(tag => <Badge key={tag} variant="gray">{tag}</Badge>)}
+                </div>
+                <div className="mt-6 flex items-center gap-4 text-[13px] text-[var(--color-text-secondary)]">
+                  <span>{base.documentCount} 个文档</span>
+                  <span>{base.tags.length} 个标签</span>
+                  <span>{formatUpdatedAt(base.updatedAt)}</span>
+                </div>
+              </button>
+              <div className="flex justify-end gap-2 mt-1">
+                <Button variant="ghost" size="sm" onClick={() => onArchiveKnowledgeBase(base.id)}>归档</Button>
+                <Button variant="ghost" size="sm" onClick={() => onCloneKnowledgeBase(base.id)}>克隆</Button>
               </div>
-              <div className="text-[13px] text-[var(--color-text-secondary)] mt-5 min-h-[40px]">{base.description}</div>
-              <div className="mt-4 flex gap-2 flex-wrap">
-                {base.tags.map(tag => <Badge key={tag} variant="gray">{tag}</Badge>)}
-              </div>
-              <div className="mt-6 flex items-center gap-4 text-[13px] text-[var(--color-text-secondary)]">
-                <span>{base.documentCount} 个文档</span>
-                <span>{base.tags.length} 个标签</span>
-                <span>{formatUpdatedAt(base.updatedAt)}</span>
-              </div>
-            </button>
+            </div>
           ))}
         </div>
 
@@ -346,6 +378,24 @@ export function KnowledgeBase({
           />
         ) : null}
       </div>
+
+      <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title="创建知识库" actions={<Button size="sm" onClick={() => { if (newKbName.trim()) { onCreateKnowledgeBase(newKbName.trim(), newKbDesc.trim() || undefined, newKbTags.split(/[,，]/).map(s => s.trim()).filter(Boolean)); setShowCreateModal(false); } }} disabled={!newKbName.trim()}>确认创建</Button>}>
+        <div className="space-y-4">
+          <div>
+            <div className="text-xs text-[var(--color-text-secondary)] mb-1">名称 <span className="text-[var(--color-danger)]">*</span></div>
+            <input className={inputCls} value={newKbName} onChange={e => setNewKbName(e.target.value)} placeholder="如：东南亚物流专项库" autoFocus />
+          </div>
+          <div>
+            <div className="text-xs text-[var(--color-text-secondary)] mb-1">描述</div>
+            <textarea className={`${inputCls} h-20 py-2 resize-none`} value={newKbDesc} onChange={e => setNewKbDesc(e.target.value)} placeholder="描述知识库的用途和覆盖范围..." />
+          </div>
+          <div>
+            <div className="text-xs text-[var(--color-text-secondary)] mb-1">标签（逗号分隔）</div>
+            <input className={inputCls} value={newKbTags} onChange={e => setNewKbTags(e.target.value)} placeholder="如：物流, 退款, 东南亚" />
+          </div>
+        </div>
+      </Modal>
+      </>
     );
   }
 
@@ -395,7 +445,13 @@ export function KnowledgeBase({
                       <div className="text-base font-semibold">{doc.name}</div>
                       <div className="text-xs text-[var(--color-text-secondary)] mt-1">{doc.owner} · {displayScenario(doc.scenario)} · {displayLanguage(doc.language)} · {doc.version}</div>
                     </div>
-                    <Badge variant={stageVariant(doc.publishStatus)}>{displayStageStatus(doc.publishStatus)}</Badge>
+                    <div className="flex gap-1.5">
+                      <Badge variant={stageVariant(doc.publishStatus)}>{displayStageStatus(doc.publishStatus)}</Badge>
+                      {doc.publishStatus === 'published' && doc.coverageScore >= 80 ? <Badge variant="green">健康</Badge> : null}
+                      {doc.publishStatus === 'indexed' || (doc.publishStatus === 'published' && doc.coverageScore < 80 && doc.coverageScore >= 60) ? <Badge variant="yellow">关注</Badge> : null}
+                      {['expired', 'version_conflict', 'chunk_failed', 'embedding_failed'].includes(doc.publishStatus) || (doc.coverageScore < 60 && doc.coverageScore > 0) ? <Badge variant="red">异常</Badge> : null}
+                      {doc.parseError ? <span className="text-[11px] text-[var(--color-danger)] self-center ml-1" title={doc.parseError}>!</span> : null}
+                    </div>
                   </div>
                   <div className="flex gap-2 flex-wrap mt-3">
                     <Badge variant="blue">{doc.knowledgeType}</Badge>
@@ -534,20 +590,70 @@ export function KnowledgeBase({
         <div>
           <div className="text-xl font-semibold">召回测试</div>
         </div>
-        {latestRetrievalRuns.length > 0 ? latestRetrievalRuns.map(run => (
+        {latestRetrievalRuns.length > 0 ? latestRetrievalRuns.map(run => {
+          const expanded = retrievalExpandedRunId === run.id;
+          return (
           <div key={run.id} className="rounded-[18px] border border-[var(--color-border)] bg-white p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="font-semibold">{run.customerQuestion}</div>
-              <Badge variant={run.guardrailCheck.result === 'passed' ? 'green' : 'yellow'}>{run.guardrailCheck.result === 'passed' ? '护栏通过' : '需复核'}</Badge>
-            </div>
-            <div className="mt-2 text-xs text-[var(--color-text-secondary)]">{displayScenario(run.scenario)} · {displayLanguage(run.language)} · {run.createdAt}</div>
-            <div className="grid grid-cols-3 gap-3 mt-4 max-[1000px]:grid-cols-1">
-              <div className="rounded-[14px] bg-[var(--color-bg)] px-3 py-2 text-xs">召回片段：<span className="font-semibold text-[var(--color-text)]">{run.retrievedChunks.length}</span></div>
-              <div className="rounded-[14px] bg-[var(--color-bg)] px-3 py-2 text-xs">引用覆盖率：<span className="font-semibold text-[var(--color-text)]">{run.guardrailCheck.citationCoverage}%</span></div>
-              <div className="rounded-[14px] bg-[var(--color-bg)] px-3 py-2 text-xs">风险等级：<span className="font-semibold text-[var(--color-text)]">{run.guardrailCheck.riskLevel}</span></div>
-            </div>
+            <button type="button" className="w-full text-left" onClick={() => setRetrievalExpandedRunId(expanded ? null : run.id)}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="font-semibold">{run.customerQuestion}</div>
+                <Badge variant={run.guardrailCheck.result === 'passed' ? 'green' : 'yellow'}>{run.guardrailCheck.result === 'passed' ? '护栏通过' : '需复核'}</Badge>
+              </div>
+              <div className="mt-2 text-xs text-[var(--color-text-secondary)]">{displayScenario(run.scenario)} · {displayLanguage(run.language)} · {run.createdAt}</div>
+              <div className="grid grid-cols-3 gap-3 mt-4 max-[1000px]:grid-cols-1">
+                <div className="rounded-[14px] bg-[var(--color-bg)] px-3 py-2 text-xs">召回片段：<span className="font-semibold text-[var(--color-text)]">{run.retrievedChunks.length}</span></div>
+                <div className="rounded-[14px] bg-[var(--color-bg)] px-3 py-2 text-xs">引用覆盖率：<span className="font-semibold text-[var(--color-text)]">{run.guardrailCheck.citationCoverage}%</span></div>
+                <div className="rounded-[14px] bg-[var(--color-bg)] px-3 py-2 text-xs">风险等级：<span className="font-semibold text-[var(--color-text)]">{run.guardrailCheck.riskLevel}</span></div>
+              </div>
+            </button>
+
+            {expanded ? (
+              <div className="mt-4 pt-4 border-t border-[var(--color-border-light)] space-y-4">
+                <div>
+                  <div className="text-sm font-semibold mb-2">检索片段详情</div>
+                  <div className="space-y-2">
+                    {run.retrievedChunks.map(chunk => (
+                      <div key={chunk.id} className="rounded-[14px] border border-[var(--color-border-light)] bg-[var(--color-bg)] p-3 text-xs">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <div className="font-medium">{chunk.source}</div>
+                          <Badge variant={chunk.selected ? 'green' : 'gray'}>分数 {chunk.score} · 重排序 {chunk.rerankScore}</Badge>
+                        </div>
+                        <div className="text-[var(--color-text-secondary)] leading-5">{chunk.snippet}</div>
+                        {chunk.rejectReason ? <div className="mt-1 text-[11px] text-[var(--color-warning)]">{chunk.rejectReason}</div> : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm font-semibold mb-2">AI 草稿</div>
+                  <div className="rounded-[14px] border border-[var(--color-border-light)] bg-[var(--color-bg)] p-3 text-xs whitespace-pre-wrap leading-6">{run.aiDraftReply}</div>
+                </div>
+
+                <div>
+                  <div className="text-sm font-semibold mb-2">护栏检查详情</div>
+                  <div className="grid grid-cols-3 gap-3 mb-3 max-[900px]:grid-cols-2">
+                    <div className="rounded-[14px] bg-[var(--color-bg)] px-3 py-2 text-xs"><span className="text-[var(--color-text-light)]">置信度</span><div className="font-semibold">{run.guardrailCheck.confidence}%</div></div>
+                    <div className="rounded-[14px] bg-[var(--color-bg)] px-3 py-2 text-xs"><span className="text-[var(--color-text-light)]">引用覆盖率</span><div className="font-semibold">{run.guardrailCheck.citationCoverage}%</div></div>
+                    <div className="rounded-[14px] bg-[var(--color-bg)] px-3 py-2 text-xs"><span className="text-[var(--color-text-light)]">风险等级</span><div className="font-semibold">{displayRiskLevel(run.guardrailCheck.riskLevel)}</div></div>
+                  </div>
+                  <div className="rounded-[14px] border border-[var(--color-border-light)] bg-[var(--color-bg)] p-3 text-xs">
+                    <Badge variant={run.guardrailCheck.result === 'passed' ? 'green' : 'red'}>{run.guardrailCheck.result === 'passed' ? '通过' : '需复核'}</Badge>
+                    <ul className="list-disc pl-4 mt-2 space-y-1 text-[var(--color-text-secondary)]">
+                      {run.guardrailCheck.notes.map(note => <li key={note}>{note}</li>)}
+                    </ul>
+                    {run.guardrailCheck.trace ? (
+                      <div className="mt-2 pt-2 border-t border-[var(--color-border-light)] text-[var(--color-text-light)]">
+                        策略来源：{run.guardrailCheck.trace.scenarioStrategyName} · 命中 {run.guardrailCheck.trace.matchedNodeIds.length} 个节点
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => setRetrievalExpandedRunId(null)}>收起详情</Button>
+              </div>
+            ) : null}
           </div>
-        )) : (
+        )}) : (
           <EmptyState title="暂无召回测试" description="还没有与当前知识库直接相关的召回测试记录。处理完成页会提供“去召回测试”入口。" compact />
         )}
       </div>
@@ -555,24 +661,109 @@ export function KnowledgeBase({
   }
 
   function renderSettingsTab() {
+    const overrides = selectedKnowledgeBase?.configOverrides;
+    const activeOverrides = kbSettingsDirty ? kbSettingsOverrides : overrides;
+
+    const effectiveStrategy = activeOverrides?.chunking?.strategy ?? ragConfig.chunking.strategy;
+    const effectiveChunkSize = activeOverrides?.chunking?.chunkSize ?? ragConfig.chunking.chunkSize;
+    const effectiveChunkOverlap = activeOverrides?.chunking?.chunkOverlap ?? ragConfig.chunking.chunkOverlap;
+    const effectiveTopK = activeOverrides?.retrieval?.topK ?? ragConfig.retrieval.topK;
+    const effectiveThreshold = activeOverrides?.retrieval?.similarityThreshold ?? ragConfig.retrieval.similarityThreshold;
+
+    const isOverridden = (field: string) => {
+      if (field === 'strategy') return activeOverrides?.chunking?.strategy !== undefined;
+      if (field === 'chunkSize') return activeOverrides?.chunking?.chunkSize !== undefined;
+      if (field === 'chunkOverlap') return activeOverrides?.chunking?.chunkOverlap !== undefined;
+      if (field === 'topK') return activeOverrides?.retrieval?.topK !== undefined;
+      if (field === 'threshold') return activeOverrides?.retrieval?.similarityThreshold !== undefined;
+      return false;
+    };
+
+    function updateOverride(field: string, value: number | string | undefined) {
+      setKbSettingsOverrides(prev => {
+        const next = structuredClone(prev ?? {});
+        if (field === 'strategy') { next.chunking = { ...next.chunking, strategy: value as string }; }
+        if (field === 'chunkSize') { next.chunking = { ...next.chunking, chunkSize: value as number }; }
+        if (field === 'chunkOverlap') { next.chunking = { ...next.chunking, chunkOverlap: value as number }; }
+        if (field === 'topK') { next.retrieval = { ...next.retrieval, topK: value as number }; }
+        if (field === 'threshold') { next.retrieval = { ...next.retrieval, similarityThreshold: value as number }; }
+        return next;
+      });
+      setKbSettingsDirty(true);
+    }
+
     return (
       <div className="space-y-4">
         <div>
           <div className="text-xl font-semibold">设置</div>
         </div>
+
         <div className="rounded-[20px] border border-[var(--color-border)] bg-white p-5 space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold">当前配置快照</div>
+              <div className="text-sm font-semibold">全局配置快照</div>
               <div className="text-xs text-[var(--color-text-secondary)] mt-1">最近更新：{ragConfig.updatedAt}</div>
             </div>
-            <Button variant="secondary" size="sm">在系统设置中查看</Button>
           </div>
           <div className="grid grid-cols-2 gap-3 max-[900px]:grid-cols-1">
             <div className="rounded-[14px] bg-[var(--color-bg)] px-4 py-3 text-sm">OCR：{ragConfig.parser.enableOCR ? '启用' : '关闭'}</div>
             <div className="rounded-[14px] bg-[var(--color-bg)] px-4 py-3 text-sm">保留文档结构：{ragConfig.parser.preserveDocumentStructure ? '启用' : '关闭'}</div>
             <div className="rounded-[14px] bg-[var(--color-bg)] px-4 py-3 text-sm">重排序：{ragConfig.retrieval.rerankerEnabled ? '启用' : '关闭'}</div>
             <div className="rounded-[14px] bg-[var(--color-bg)] px-4 py-3 text-sm">引用要求：{ragConfig.retrieval.citationRequired ? '必须引用' : '可选'}</div>
+          </div>
+        </div>
+
+        <div className="rounded-[20px] border border-[var(--color-primary)] bg-[linear-gradient(180deg,rgba(179,92,32,0.03),rgba(255,255,255,1))] p-5 space-y-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-sm font-semibold">知识库级覆盖配置</div>
+              <div className="text-xs text-[var(--color-text-secondary)] mt-1">覆盖全局默认值，仅对当前知识库生效。留空则继承全局配置。</div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => { setKbSettingsOverrides(overrides); setKbSettingsDirty(false); }}>恢复</Button>
+              <Button size="sm" disabled={!kbSettingsDirty} onClick={() => { if (selectedKnowledgeBase) { onUpdateKnowledgeBaseOverrides(selectedKnowledgeBase.id, activeOverrides); setKbSettingsDirty(false); } }}>保存覆盖</Button>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3 max-[1000px]:grid-cols-2">
+            <div className="rounded-[14px] bg-[var(--color-bg)] px-4 py-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs text-[var(--color-text-secondary)]">切片策略</span>
+                {isOverridden('strategy') ? <Badge variant="yellow">已覆盖</Badge> : <Badge variant="gray">继承全局</Badge>}
+              </div>
+              <select className={inputCls} value={effectiveStrategy} onChange={e => updateOverride('strategy', e.target.value)}>
+                <option value="by heading">按标题</option>
+                <option value="by paragraph">按段落</option>
+                <option value="fixed tokens">固定 tokens</option>
+              </select>
+            </div>
+            <div className="rounded-[14px] bg-[var(--color-bg)] px-4 py-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs text-[var(--color-text-secondary)]">Chunk Size</span>
+                {isOverridden('chunkSize') ? <Badge variant="yellow">已覆盖</Badge> : <Badge variant="gray">继承全局</Badge>}
+              </div>
+              <input type="number" className={inputCls} value={effectiveChunkSize} onChange={e => updateOverride('chunkSize', Number(e.target.value))} />
+            </div>
+            <div className="rounded-[14px] bg-[var(--color-bg)] px-4 py-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs text-[var(--color-text-secondary)]">Chunk Overlap</span>
+                {isOverridden('chunkOverlap') ? <Badge variant="yellow">已覆盖</Badge> : <Badge variant="gray">继承全局</Badge>}
+              </div>
+              <input type="number" className={inputCls} value={effectiveChunkOverlap} onChange={e => updateOverride('chunkOverlap', Number(e.target.value))} />
+            </div>
+            <div className="rounded-[14px] bg-[var(--color-bg)] px-4 py-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs text-[var(--color-text-secondary)]">Top K</span>
+                {isOverridden('topK') ? <Badge variant="yellow">已覆盖</Badge> : <Badge variant="gray">继承全局</Badge>}
+              </div>
+              <input type="number" className={inputCls} value={effectiveTopK} onChange={e => updateOverride('topK', Number(e.target.value))} />
+            </div>
+            <div className="rounded-[14px] bg-[var(--color-bg)] px-4 py-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs text-[var(--color-text-secondary)]">相似度阈值</span>
+                {isOverridden('threshold') ? <Badge variant="yellow">已覆盖</Badge> : <Badge variant="gray">继承全局</Badge>}
+              </div>
+              <input type="number" step="0.01" className={inputCls} value={effectiveThreshold} onChange={e => updateOverride('threshold', Number(e.target.value))} />
+            </div>
           </div>
         </div>
       </div>
@@ -589,6 +780,11 @@ export function KnowledgeBase({
       { key: 'settings', label: '设置' },
     ];
 
+    const kbDocs = knowledgeDocuments.filter(d => selectedKnowledgeBase.documentIds.includes(d.id));
+    const kbScenarios = Array.from(new Set(kbDocs.map(d => d.scenario)));
+    const healthyDocs = kbDocs.filter(d => d.publishStatus === 'published' && d.coverageScore >= 80).length;
+    const gapDocs = kbDocs.filter(d => ['expired', 'version_conflict', 'chunk_failed', 'embedding_failed'].includes(d.publishStatus) || d.coverageScore < 70).length;
+
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-4 flex-wrap rounded-[20px] border border-[var(--color-border)] bg-[rgba(255,255,255,0.62)] px-5 py-4">
@@ -597,7 +793,18 @@ export function KnowledgeBase({
             <div className="min-w-0 text-[24px] leading-none font-semibold tracking-[-0.03em] text-[var(--color-text)] truncate">
               {selectedKnowledgeBase.name}
             </div>
+            <Button variant="ghost" size="sm" onClick={() => { setEditMetaName(selectedKnowledgeBase.name); setEditMetaDesc(selectedKnowledgeBase.description); setEditMetaTags(selectedKnowledgeBase.tags.join(', ')); setEditMetaOwner(selectedKnowledgeBase.owner); setEditMetaModalOpen(true); }}>编辑</Button>
           </div>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={() => onArchiveKnowledgeBase(selectedKnowledgeBase.id)}>归档</Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-3 max-[1100px]:grid-cols-2">
+          <StatCard label="文档总量" value={String(selectedKnowledgeBase.documentCount)} detail="当前知识库下的全部文档。" />
+          <StatCard label="健康文档" value={String(healthyDocs)} detail="已发布且覆盖率 ≥ 80%。" tone={healthyDocs > 0 ? 'success' : 'warning'} />
+          <StatCard label="覆盖场景" value={String(kbScenarios.length)} detail={`覆盖 ${kbScenarios.map(s => displayScenario(s)).slice(0, 3).join('、')}等业务场景。`} />
+          <StatCard label="覆盖缺口" value={String(gapDocs)} detail="过期、版本冲突或覆盖率偏低的文档。" tone={gapDocs > 0 ? 'danger' : 'success'} />
         </div>
 
         <div className="grid grid-cols-[180px_1fr] gap-4 max-[1180px]:grid-cols-1">
@@ -710,6 +917,27 @@ export function KnowledgeBase({
                   <EmptyState title="当前筛选下没有可展示的元数据" compact />
                 </div>
               )}
+            </div>
+          </div>
+        </Modal>
+
+        <Modal open={editMetaModalOpen} onClose={() => setEditMetaModalOpen(false)} title="编辑知识库" actions={<Button size="sm" onClick={() => { if (editMetaName.trim() && selectedKnowledgeBase) { onUpdateKnowledgeBaseMeta(selectedKnowledgeBase.id, { name: editMetaName.trim(), description: editMetaDesc.trim() || undefined, tags: editMetaTags.split(/[,，]/).map(s => s.trim()).filter(Boolean), owner: editMetaOwner.trim() || undefined }); setEditMetaModalOpen(false); } }} disabled={!editMetaName.trim()}>保存</Button>}>
+          <div className="space-y-4">
+            <div>
+              <div className="text-xs text-[var(--color-text-secondary)] mb-1">名称</div>
+              <input className={inputCls} value={editMetaName} onChange={e => setEditMetaName(e.target.value)} />
+            </div>
+            <div>
+              <div className="text-xs text-[var(--color-text-secondary)] mb-1">描述</div>
+              <textarea className={`${inputCls} h-20 py-2 resize-none`} value={editMetaDesc} onChange={e => setEditMetaDesc(e.target.value)} />
+            </div>
+            <div>
+              <div className="text-xs text-[var(--color-text-secondary)] mb-1">标签（逗号分隔）</div>
+              <input className={inputCls} value={editMetaTags} onChange={e => setEditMetaTags(e.target.value)} />
+            </div>
+            <div>
+              <div className="text-xs text-[var(--color-text-secondary)] mb-1">负责人</div>
+              <input className={inputCls} value={editMetaOwner} onChange={e => setEditMetaOwner(e.target.value)} />
             </div>
           </div>
         </Modal>
