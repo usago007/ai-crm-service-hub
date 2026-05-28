@@ -43,8 +43,6 @@ const notificationLabels: Record<string, string> = {
 };
 
 function renderTabContent(tab: string, lang: Language, onLanguageChange: (l: Language) => void, settings: SettingsData, agents: Agent[], t: ReturnType<typeof useT>['t']) {
-  const roleCount = settings.permissions.roleProfiles.length;
-
   if (tab === 'general') return (
     <div className="space-y-5">
       <div>
@@ -62,51 +60,6 @@ function renderTabContent(tab: string, lang: Language, onLanguageChange: (l: Lan
   );
 
   if (tab === 'permissions') return <PermissionsAndTeam settings={settings} agents={agents} />;
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 max-[900px]:grid-cols-1">
-        <StatCard label="角色数" value={String(roleCount)} detail="当前定义的权限角色模版。" />
-        <StatCard label="覆盖成员" value={String(agents.length)} detail="均默认继承对应角色权限。" />
-      </div>
-      <PanelCard title="角色与权限" description="每个角色定义了一组固定的 AI 操作权限，团队成员继承其所属角色的权限。">
-        <DataTable columns={[
-          { key: 'role', label: '角色', width: '18%' },
-          { key: 'scope', label: '职责范围', width: '24%' },
-          { key: 'suggest', label: 'AI 建议' },
-          { key: 'send', label: '发送' },
-          { key: 'review', label: '复核' },
-          { key: 'knowledge', label: '知识访问', width: '14%' },
-        ]} emptyMessage="当前没有角色权限画像。" className="rounded-[20px]">
-          {settings.permissions.roleProfiles.map(profile => (
-            <tr key={profile.role}>
-              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] font-medium">{profile.role}</td>
-              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] text-[var(--color-text-secondary)]">{profile.scopeSummary}</td>
-              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{profile.aiSuggest}</td>
-              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{profile.humanSend}</td>
-              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{profile.manualReviewOverride}</td>
-              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{profile.knowledgeAccess}</td>
-            </tr>
-          ))}
-        </DataTable>
-      </PanelCard>
-      <PanelCard title="成员权限分配" description="每位成员的当前有效权限。更改角色请在团队管理中操作。">
-        <DataTable columns={[
-          { key: 'member', label: '成员', width: '20%' },
-          { key: 'role', label: '角色', width: '16%' },
-          { key: 'effective', label: '有效权限', width: '44%' },
-          { key: 'override', label: '特殊授权', width: '20%' },
-        ]} emptyMessage="暂无成员。" className="rounded-[20px]">
-          {settings.permissions.memberAssignments.map(member => (
-            <tr key={member.memberName}>
-              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{member.memberName}</td>
-              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{member.role}</td>
-              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] text-[var(--color-text-secondary)]">{member.effectivePermissions}</td>
-              <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant={member.inheritsFromRole ? 'green' : 'yellow'}>{member.inheritsFromRole ? '标准继承' : '单独覆盖'}</Badge></td>
-            </tr>
-          ))}
-        </DataTable>
-      </PanelCard>
-    </div>
-  );
 
   if (tab === 'channels') return (
     <div>
