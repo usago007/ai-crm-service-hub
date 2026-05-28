@@ -174,8 +174,12 @@ export function ServiceHealthPage({
   const criticalDiagnostics = serviceHealth.diagnostics.filter(item => item.severity === 'critical').length;
   const displayedError = serviceHealth.recentErrors[0] ?? null;
 
-  const [alertThresholds, setAlertThresholds] = useState({ errorRate: 5, latencyMs: 3000, rateLimit: 80 });
+  const [alertThresholds, setAlertThresholds] = useState<{ errorRate: number; latencyMs: number; rateLimit: number }>(() => {
+    try { const saved = sessionStorage.getItem('health-alert-thresholds'); if (saved) return JSON.parse(saved); } catch {}
+    return { errorRate: 5, latencyMs: 3000, rateLimit: 80 };
+  });
   const [alertDirty, setAlertDirty] = useState(false);
+  const persistAlertThresholds = (t: typeof alertThresholds) => { sessionStorage.setItem('health-alert-thresholds', JSON.stringify(t)); };
 
   const healthHistory = [
     { checkedAt: serviceHealth.lastHealthCheck.checkedAt, status: serviceHealth.lastHealthCheck.overallStatus, summary: serviceHealth.lastHealthCheck.summary, findings: serviceHealth.lastHealthCheck.findings.length },
@@ -195,11 +199,14 @@ export function ServiceHealthPage({
               实时监控 LLM、Embedding、Vector DB 及文档接入队列的健康状况。异常指标将触发诊断建议。
             </div>
           </div>
-          <Button size="sm" variant="secondary" onClick={() => { void onRefreshServiceHealth(); }}>刷新状态</Button>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <span className="text-[11px] text-[var(--color-text-light)]">最近检查：{serviceHealth.lastHealthCheck.checkedAt}</span>
+            <Button size="sm" variant="secondary" onClick={() => { void onRefreshServiceHealth(); }}>刷新状态</Button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-[1.35fr_0.9fr] gap-5 max-[1200px]:grid-cols-1">
+      <div className="grid grid-cols-2 gap-5 max-[1200px]:grid-cols-1">
         <section className="shell-card rounded-[32px] px-5 py-5 relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(179,92,32,0.14),transparent_44%),radial-gradient(circle_at_bottom_right,rgba(45,107,93,0.10),transparent_36%)] pointer-events-none" />
           <div className="relative flex items-start justify-between gap-4">
@@ -230,7 +237,7 @@ export function ServiceHealthPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-[1.1fr_0.9fr] gap-5 max-[1200px]:grid-cols-1">
+      <div className="grid grid-cols-2 gap-5 max-[1200px]:grid-cols-1">
         <SurfaceCard
           title="最近错误与健康检查"
           meta={[`最近检查：${serviceHealth.lastHealthCheck.checkedAt}`]}
@@ -240,7 +247,7 @@ export function ServiceHealthPage({
             </Button>
           )}
         >
-          <div className="grid grid-cols-[1.1fr_0.9fr] gap-4 max-[900px]:grid-cols-1">
+          <div className="grid grid-cols-2 gap-4 max-[900px]:grid-cols-1">
             <div className="rounded-[22px] bg-[linear-gradient(180deg,rgba(255,255,255,0.84),rgba(248,249,251,0.66))] border border-[var(--color-border-light)] p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-[15px] font-medium tracking-[-0.02em]">{serviceHealth.lastHealthCheck.summary}</div>
@@ -451,7 +458,7 @@ export function ServiceHealthPage({
           action={
             <div className="flex gap-2">
               <Button variant="secondary" size="sm" onClick={() => { setAlertThresholds({ errorRate: 5, latencyMs: 3000, rateLimit: 80 }); setAlertDirty(false); }}>重置</Button>
-              <Button size="sm" disabled={!alertDirty} onClick={() => setAlertDirty(false)}>保存</Button>
+              <Button size="sm" disabled={!alertDirty} onClick={() => { setAlertDirty(false); persistAlertThresholds(alertThresholds); }}>保存</Button>
             </div>
           }
         >

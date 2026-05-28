@@ -58,8 +58,13 @@ export function Settings({ lang, onLanguageChange, settings, agents, permissionB
   return (
     <div className="space-y-4">
       <div className="rounded-[24px] border border-[var(--color-border)] bg-[linear-gradient(180deg,#FFFFFF_0%,#FAFBFC_100%)] p-6">
-        <div className="text-[20px] font-semibold tracking-[-0.02em]">系统设置</div>
-        <div className="text-sm text-[var(--color-text-secondary)] mt-1 leading-6">管理团队、权限、渠道和通知偏好。所有更改即时生效。</div>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0">
+            <div className="text-[20px] font-semibold tracking-[-0.02em]">系统设置</div>
+            <div className="text-sm text-[var(--color-text-secondary)] mt-1 leading-6">管理团队、权限、渠道和通知偏好。所有更改即时生效。</div>
+          </div>
+          <span className="text-[11px] text-[var(--color-text-light)] flex-shrink-0">{lang === 'zh' ? '简体中文' : 'English'} · 团队 {agents.length} 人</span>
+        </div>
         <div className="mt-4 grid grid-cols-3 gap-3 max-[1100px]:grid-cols-1">
           <StatCard label="语言环境" value={lang === 'zh' ? '中文' : lang} detail="后台操作语言与基础文案" />
           <StatCard label="团队席位" value={String(agents.length)} detail="当前可见的在线客服与管理成员" />
@@ -89,6 +94,7 @@ export function Settings({ lang, onLanguageChange, settings, agents, permissionB
                 <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-2">{t.settings.language}</label>
                 <select className={inputCls} value={lang} onChange={e => onLanguageChange(e.target.value as Language)}>
                   <option value="zh">简体中文</option>
+                  <option value="en">English</option>
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3 text-xs max-[900px]:grid-cols-1">

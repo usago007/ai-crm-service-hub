@@ -24,7 +24,9 @@ export function EvaluationFeedbackPage({
   onSelectBusinessTicket,
   onOpenPage,
 }: Props) {
-  const [localEvaluations, setLocalEvaluations] = useState(evaluations);
+  const [localEvaluations, setLocalEvaluations] = useState(() => {
+    try { const saved = JSON.parse(sessionStorage.getItem('saved-evaluations') || '[]'); return [...evaluations, ...saved]; } catch { return evaluations; }
+  });
   const [localFeedbackLoop, setLocalFeedbackLoop] = useState(feedbackLoop);
   const [showNewEval, setShowNewEval] = useState(false);
   const [showNewFeedback, setShowNewFeedback] = useState(false);
@@ -91,7 +93,8 @@ export function EvaluationFeedbackPage({
               追踪 AI 客服质量指标、收集反馈信号、审查配置变更审计日志。评测结果和反馈将直接影响知识库和策略优化。
             </div>
           </div>
-          <div className="flex gap-2 flex-shrink-0">
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <span className="text-[11px] text-[var(--color-text-light)]">评测项 {localEvaluations.length} 条 · 反馈 {localFeedbackLoop.length} 条</span>
             <Button size="sm" onClick={() => setShowNewEval(true)}>新建评测</Button>
             <Button size="sm" variant="secondary" onClick={() => setShowNewFeedback(true)}>提交反馈</Button>
           </div>
@@ -186,7 +189,17 @@ export function EvaluationFeedbackPage({
                       </div>
                       <div className="text-[var(--color-text-secondary)] leading-5">{item.signal}</div>
                       <div className="mt-2"><strong>动作：</strong> {item.action}</div>
-                      <div className="mt-1 text-[11px] text-[var(--color-text-light)]">{item.owner} · {item.updatedAt}</div>
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <div className="text-[11px] text-[var(--color-text-light)]">{item.owner} · {item.updatedAt}</div>
+                        {item.status !== 'shipped' ? (
+                          <Button variant="ghost" size="sm" onClick={() => {
+                            const next = item.status === 'new' ? 'triaged' as const : 'shipped' as const;
+                            setLocalFeedbackLoop(prev => prev.map(f => f.id === item.id ? { ...f, status: next, updatedAt: new Date().toISOString().slice(0, 16).replace('T', ' ') } : f));
+                          }}>
+                            {item.status === 'new' ? '→ 分诊' : '→ 落地'}
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                   ))}
                   {localFeedbackLoop.length === 0 ? <EmptyState title="暂无反馈记录" compact /> : null}

@@ -1023,8 +1023,10 @@ export function KnowledgeBase({
                     className={`rounded-[18px] border p-5 text-left transition-colors ${knowledgeWizardDraft.sourceType === option.key ? 'border-[var(--color-primary)] shadow-[0_0_0_1px_rgba(52,112,255,0.18)]' : 'border-[var(--color-border)]'} ${option.enabled ? 'bg-white' : 'bg-[var(--color-bg)] opacity-65 cursor-not-allowed'}`}
                     onClick={() => option.enabled && onKnowledgeWizardDraftChange(prev => ({ ...prev, sourceType: option.key }))}
                     disabled={!option.enabled}
+                    title={!option.enabled ? '此数据源接入方式即将支持' : option.label}
                   >
                     <div className="text-sm font-semibold">{option.label}</div>
+                    {!option.enabled ? <div className="text-[11px] text-[var(--color-text-light)] mt-1">即将支持</div> : null}
                   </button>
                 ))}
               </div>

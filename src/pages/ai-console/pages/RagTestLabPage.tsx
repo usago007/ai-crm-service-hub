@@ -28,6 +28,7 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
   // A/B comparison & feedback state
   const [abMode, setAbMode] = useState(false);
   const [abRuns, setAbRuns] = useState<{ a: RagTestRun | null; b: RagTestRun | null }>({ a: null, b: null });
+  const [abParams, setAbParams] = useState({ scenario: 'Refund', topK: 8, threshold: 0.7, reranker: true });
   const [chunkFeedback, setChunkFeedback] = useState<Record<string, 'helpful' | 'not_helpful'>>({});
   const [presets, setPresets] = useState<Array<{ name: string; form: typeof testForm }>>([]);
   const [presetName, setPresetName] = useState('');
@@ -80,7 +81,8 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
     const resultA = await onRunRagTest(payload);
     const resultB = await onRunRagTest({
       ...payload,
-      customerQuestion: `${payload.customerQuestion} [variant: prioritize recall over precision]`,
+      scenario: abParams.scenario,
+      customerQuestion: payload.customerQuestion,
     });
     setAbRuns({ a: resultA.run, b: resultB.run });
     setSelectedRunId(resultA.run.id);
@@ -119,6 +121,21 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
       createdAt: run.createdAt,
     };
     void navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+  }
+
+  function saveToEvaluation(run: RagTestRun) {
+    try {
+      const existing = JSON.parse(sessionStorage.getItem('saved-evaluations') || '[]');
+      existing.push({
+        id: `EVAL-SAVED-${Date.now()}`,
+        scenario: run.scenario,
+        metric: `${run.guardrailCheck.result === 'passed' ? '护栏通过' : '需复核'} | 置信度 ${run.guardrailCheck.confidence}%`,
+        score: String(run.guardrailCheck.citationCoverage),
+        baseline: '70',
+        status: run.guardrailCheck.result === 'passed' ? 'good' : 'watch',
+      });
+      sessionStorage.setItem('saved-evaluations', JSON.stringify(existing));
+    } catch {}
   }
 
   function copyPrompt(run: RagTestRun) {
@@ -161,8 +178,15 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
               输入客户问题，模拟完整的检索→组装→护栏检查链路。用于验证知识和策略配置是否按预期工作。
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <span className="text-[11px] text-[var(--color-text-light)]">历史运行 {ragTestRuns.length} 条</span>
             <Toggle label="AB 对比" on={abMode} onClick={() => setAbMode(prev => !prev)} />
+            {abMode ? (
+              <select className={`${inputCls} w-auto h-8 text-xs`} value={abParams.scenario} onChange={e => setAbParams(p => ({ ...p, scenario: e.target.value }))}>
+                <option value="">B 栏场景...</option>
+                {scenarioOptions.filter(([v]) => v !== testForm.scenario).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            ) : null}
           </div>
         </div>
         {businessCase.ticket && businessCase.customer ? (
@@ -281,13 +305,14 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
               feedbackCounts={feedbackCounts}
               onExport={exportRun}
               onCopyPrompt={copyPrompt}
+              onSaveToEval={saveToEvaluation}
             />
           ) : abMode && (abRuns.a || abRuns.b) ? (
             <div className={abRuns.a && abRuns.b ? 'grid grid-cols-2 gap-4 max-[1200px]:grid-cols-1' : ''}>
               {abRuns.a ? (
                 <div>
                   <div className="text-xs font-semibold text-[var(--color-primary)] mb-2 px-1">Run A（标准参数）</div>
-                  <RunResultDetail run={abRuns.a} chunkFeedback={chunkFeedback} onToggleFeedback={toggleChunkFeedback} feedbackCounts={feedbackCounts} onExport={exportRun} onCopyPrompt={copyPrompt} />
+                  <RunResultDetail run={abRuns.a} chunkFeedback={chunkFeedback} onToggleFeedback={toggleChunkFeedback} feedbackCounts={feedbackCounts} onExport={exportRun} onCopyPrompt={copyPrompt} onSaveToEval={saveToEvaluation} />
                 </div>
               ) : null}
               {abRuns.b ? (
@@ -341,6 +366,7 @@ function RunResultDetail({
   feedbackCounts,
   onExport,
   onCopyPrompt,
+  onSaveToEval,
 }: {
   run: RagTestRun;
   chunkFeedback: Record<string, 'helpful' | 'not_helpful'>;
@@ -348,6 +374,7 @@ function RunResultDetail({
   feedbackCounts: { helpful: number; unhelpful: number };
   onExport: (run: RagTestRun) => void;
   onCopyPrompt: (run: RagTestRun) => void;
+  onSaveToEval?: (run: RagTestRun) => void;
 }) {
   return (
     <>
@@ -405,6 +432,7 @@ function RunResultDetail({
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <Button size="sm" variant="secondary" onClick={() => onExport(run)}>导出结果</Button>
           <Button size="sm" variant="secondary" onClick={() => onCopyPrompt(run)}>复制 Prompt</Button>
+          {onSaveToEval ? <Button size="sm" variant="secondary" onClick={() => onSaveToEval(run)}>保存到评测集</Button> : null}
         </div>
         <div className="border border-[var(--color-border-light)] rounded-[14px] p-3 bg-[var(--color-bg)] text-xs whitespace-pre-wrap mb-3">{run.aiDraftReply}</div>
         <div className="grid grid-cols-3 gap-3 max-[1000px]:grid-cols-2">
