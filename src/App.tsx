@@ -265,17 +265,20 @@ export default function App() {
       case 'admin-team':
       case 'admin-permissions':
       case 'admin-channels':
-      case 'admin-notifications':
+      case 'admin-notifications': {
+        const adminTab = app.currentPage === 'admin-general' ? 'general' : app.currentPage === 'admin-team' ? 'team' : app.currentPage === 'admin-permissions' ? 'permissions' : app.currentPage === 'admin-channels' ? 'channels' : app.currentPage === 'admin-notifications' ? 'notifications' : undefined;
         return (
           <Settings
+            key={app.currentPage}
             lang={app.lang}
             onLanguageChange={app.setLang}
             settings={app.snapshot.settings}
             agents={app.snapshot.agents}
             permissionBoundaries={app.snapshot.permissionBoundaries}
-            initialTab={app.currentPage === 'admin-general' ? 'general' : app.currentPage === 'admin-team' ? 'team' : app.currentPage === 'admin-permissions' ? 'permissions' : app.currentPage === 'admin-channels' ? 'channels' : app.currentPage === 'admin-notifications' ? 'notifications' : undefined}
+            initialTab={adminTab}
           />
         );
+      }
       default:
         return null;
     }

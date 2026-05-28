@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Agent, PermissionBoundary, SettingsData } from '../types';
 import { Badge } from '../components/common/Badge';
 import { DataTable } from '../components/common/DataTable';
@@ -172,6 +172,7 @@ function renderTabContent(tab: string, lang: Language, onLanguageChange: (l: Lan
 export function Settings({ lang, onLanguageChange, settings, agents, permissionBoundaries, initialTab }: SettingsProps) {
   const { t } = useT();
   const [tab, setTab] = useState<string>(initialTab ?? 'general');
+  useEffect(() => { if (initialTab) setTab(initialTab); }, [initialTab]);
   const isSubPage = initialTab !== undefined;
   const activeTabItem = tabs.find(t => t.key === tab) ?? tabs[0];
 
