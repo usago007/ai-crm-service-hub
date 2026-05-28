@@ -15,7 +15,12 @@ export type NavKey =
   | 'ai-console-service-health'
   | 'ai-console-audit-logs'
   | 'tasks'
-  | 'admin-settings';
+  | 'admin-settings'
+  | 'admin-general'
+  | 'admin-team'
+  | 'admin-permissions'
+  | 'admin-channels'
+  | 'admin-notifications';
 
 export type AIConsolePageKey =
   | 'rag-config'

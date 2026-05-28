@@ -1,6 +1,6 @@
 import type { FollowUpTask, NavKey, Ticket } from '../../types';
 import { useT } from '../../i18n';
-import { Activity, BarChart3, CheckSquare, Cpu, Database, FlaskConical, LayoutDashboard, Map, MessageSquare, Package, PanelLeftClose, PanelLeftOpen, Settings, SlidersHorizontal, TicketCheck, Users } from 'lucide-react';
+import { Activity, BarChart3, Bell, CheckSquare, Cpu, Database, FlaskConical, LayoutDashboard, Map, MessageSquare, Package, PanelLeftClose, PanelLeftOpen, Settings, Shield, SlidersHorizontal, TicketCheck, Users } from 'lucide-react';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -38,7 +38,6 @@ export function Sidebar({ collapsed, currentPage, tickets, tasks, onNavigate, on
       label: '知识管理',
       items: [
         { key: 'knowledge' as NavKey, label: 'AI 知识库', icon: Database, count: undefined },
-        { key: 'system-operation-logs' as NavKey, label: '操作日志', icon: Activity, count: undefined },
       ],
     },
     {
@@ -59,7 +58,12 @@ export function Sidebar({ collapsed, currentPage, tickets, tasks, onNavigate, on
     {
       label: '系统',
       items: [
-        { key: 'admin-settings' as NavKey, label: '系统设置', icon: Settings, count: undefined },
+        { key: 'admin-general' as NavKey, label: '通用设置', icon: Settings, count: undefined },
+        { key: 'admin-team' as NavKey, label: '团队管理', icon: Users, count: undefined },
+        { key: 'admin-permissions' as NavKey, label: '权限管理', icon: Shield, count: undefined },
+        { key: 'admin-channels' as NavKey, label: '渠道设置', icon: MessageSquare, count: undefined },
+        { key: 'admin-notifications' as NavKey, label: '通知设置', icon: Bell, count: undefined },
+        { key: 'system-operation-logs' as NavKey, label: '操作日志', icon: Activity, count: undefined },
       ],
     },
   ];

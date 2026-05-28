@@ -19,12 +19,16 @@ import { useServiceHubApp } from './shared/hooks/useServiceHubApp';
 import type { KnowledgeDetailTab, KnowledgeFlow, KnowledgeWizardStep, NavKey } from './types';
 
 function getBreadcrumbPath(page: NavKey, t: ReturnType<typeof getTranslations>, aiConsoleLabel: string | null) {
-  if (page === 'knowledge') return [t.nav.aiControl, t.nav.knowledge];
-  if (page === 'system-operation-logs') return [t.nav.aiControl, '操作日志'];
-  if (aiConsoleLabel) return [t.nav.aiControl, aiConsoleLabel];
+  if (page === 'knowledge') return ['知识管理', 'AI 知识库'];
+  if (page === 'system-operation-logs') return ['系统', '操作日志'];
+  if (page.startsWith('admin-')) {
+    const label = page === 'admin-general' ? '通用设置' : page === 'admin-team' ? '团队管理' : page === 'admin-permissions' ? '权限管理' : page === 'admin-channels' ? '渠道设置' : '通知设置';
+    return ['系统', label];
+  }
+  if (aiConsoleLabel) return ['AI 配置', aiConsoleLabel];
   if (page === 'overview' || page === 'service' || page === 'tickets' || page === 'tasks') return [t.nav.workbench, t.page[page as keyof typeof t.page] ?? t.nav.workbench];
   if (page === 'customers' || page === 'orders') return [t.nav.customerOps, t.page[page as keyof typeof t.page] ?? t.nav.customerOps];
-  if (page === 'admin-settings') return [t.nav.aiControl, t.page.adminSettings];
+  if (page === 'admin-settings') return ['系统', '系统设置'];
   return [t.page[page as keyof typeof t.page] ?? t.page.service];
 }
 
@@ -80,7 +84,7 @@ export default function App() {
   };
 
   const handleOpenAdmin = () => {
-    app.setCurrentPage('admin-settings');
+    app.setCurrentPage('admin-general');
   };
 
   const renderPage = () => {
@@ -257,6 +261,11 @@ export default function App() {
           />
         );
       case 'admin-settings':
+      case 'admin-general':
+      case 'admin-team':
+      case 'admin-permissions':
+      case 'admin-channels':
+      case 'admin-notifications':
         return (
           <Settings
             lang={app.lang}
@@ -264,6 +273,7 @@ export default function App() {
             settings={app.snapshot.settings}
             agents={app.snapshot.agents}
             permissionBoundaries={app.snapshot.permissionBoundaries}
+            initialTab={app.currentPage === 'admin-general' ? 'general' : app.currentPage === 'admin-team' ? 'team' : app.currentPage === 'admin-permissions' ? 'permissions' : app.currentPage === 'admin-channels' ? 'channels' : app.currentPage === 'admin-notifications' ? 'notifications' : undefined}
           />
         );
       default:

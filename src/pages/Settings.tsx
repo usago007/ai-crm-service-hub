@@ -14,6 +14,7 @@ interface SettingsProps {
   settings: SettingsData;
   agents: Agent[];
   permissionBoundaries: PermissionBoundary[];
+  initialTab?: string;
 }
 
 const tabs = [
@@ -47,9 +48,9 @@ function boundaryBadge(value: string) {
   return { label: value, variant: 'gray' as const };
 }
 
-export function Settings({ lang, onLanguageChange, settings, agents, permissionBoundaries }: SettingsProps) {
+export function Settings({ lang, onLanguageChange, settings, agents, permissionBoundaries, initialTab }: SettingsProps) {
   const { t } = useT();
-  const [tab, setTab] = useState<string>('general');
+  const [tab, setTab] = useState<string>(initialTab ?? 'general');
   const manualReviewCount = permissionBoundaries.filter(item => item.manualReview !== 'No').length;
   const blockedSendCount = permissionBoundaries.filter(item => item.aiSend === 'No').length;
   const roleCount = settings.permissions.roleProfiles.length;
