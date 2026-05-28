@@ -15,8 +15,21 @@ import {
   displayWorkflow,
 } from '../../utils/display';
 
-export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
-  return <BasePageHeader title={title} description={description} actions={actions} />;
+export function PageHeader({ title, description, actions, meta }: { title: string; description?: string; actions?: ReactNode; meta?: ReactNode }) {
+  return (
+    <div className="rounded-[24px] border border-[var(--color-border)] bg-[linear-gradient(180deg,#FFFFFF_0%,#FAFBFC_100%)] p-6">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <div className="text-[20px] font-semibold tracking-[-0.02em]">{title}</div>
+          {description ? <div className="text-sm text-[var(--color-text-secondary)] mt-1 leading-6">{description}</div> : null}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {meta ? <span className="text-[11px] text-[var(--color-text-light)]">{meta}</span> : null}
+          {actions}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function SectionCard({ title, children }: { title: string; children: ReactNode }) {

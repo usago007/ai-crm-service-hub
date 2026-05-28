@@ -4,7 +4,7 @@ import { Button } from '../../../components/common/Button';
 import { Modal } from '../../../components/common/Modal';
 import { EmptyState } from '../../../components/common/PageChrome';
 import type { AIConsoleProps } from '../types';
-import { DataTable, SectionCard, StatCard } from '../shared';
+import { DataTable, PageHeader, SectionCard, StatCard } from '../shared';
 import { inputCls } from '../sharedUtils';
 import { displayAuditEvent, displayFeedbackStatus, displayRiskLevel, displayRuntimeStatus, displayScenario } from '../../../utils/display';
 import type { EvaluationCenterTab, EvaluationRecord, FeedbackLoopRecord } from '../../../types';
@@ -85,21 +85,13 @@ export function EvaluationFeedbackPage({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-[24px] border border-[var(--color-border)] bg-[linear-gradient(180deg,#FFFFFF_0%,#FAFBFC_100%)] p-6">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="min-w-0">
-            <div className="text-[20px] font-semibold tracking-[-0.02em]">评测与反馈</div>
-            <div className="text-sm text-[var(--color-text-secondary)] mt-1 leading-6">
-              追踪 AI 客服质量指标、收集反馈信号、审查配置变更审计日志。评测结果和反馈将直接影响知识库和策略优化。
-            </div>
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <span className="text-[11px] text-[var(--color-text-light)]">评测项 {localEvaluations.length} 条 · 反馈 {localFeedbackLoop.length} 条</span>
-            <Button size="sm" onClick={() => setShowNewEval(true)}>新建评测</Button>
-            <Button size="sm" variant="secondary" onClick={() => setShowNewFeedback(true)}>提交反馈</Button>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="评测与反馈"
+        description="追踪 AI 客服质量指标、收集反馈信号、审查配置变更审计日志。评测结果和反馈将直接影响知识库和策略优化。"
+        meta={<span className="text-[11px] text-[var(--color-text-light)]">评测项 {localEvaluations.length} 条 · 反馈 {localFeedbackLoop.length} 条</span>}
+        actions={<><Button size="sm" onClick={() => setShowNewEval(true)}>新建评测</Button>
+        <Button size="sm" variant="secondary" onClick={() => setShowNewFeedback(true)}>提交反馈</Button></>}
+      />
 
       <div className="flex gap-2 flex-wrap">
         {([
