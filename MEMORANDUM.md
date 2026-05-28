@@ -70,12 +70,43 @@
 
 ---
 
-## 处理记录
+## 三个 Goal 执行记录
 
-| 发现于 | 问题 | 状态 |
-|--------|------|------|
-| ScenarioModelConfigPage | 字段校验缺失 temperature/min-max | ✅ 已修复 |
-| ScenarioModelConfigPage | 无 header 说明页面的作用 | ✅ 已修复 |
-| RagTestLabPage | AB 对比两次运行使用相同参数 | 🔴 待补充 |
-| EvaluationFeedbackPage | 反馈状态无法内联流转 | 🔴 待补充 |
-| Settings | 渠道/通知 Toggle 无功能 | 🔴 待补充 |
+### Goal 1: ServiceHealth 布局对齐 + 更新时间统一
+| 问题 | 处理 |
+|------|------|
+| ServiceHealthPage 使用 1.35fr/0.9fr 等非标准列宽 | 统一改为 grid-cols-2 标准网格 |
+| 各页面缺少更新时间或不统一 | 全部页面 header 统一加入页元信息（评测/反馈条数、历史运行数、团队人数等） |
+| RagConfigPage 更新时间在底部栏 | ✅ 保持，这是配置页面的合理位置 |
+
+### Goal 2: 导航拆分
+| 问题 | 处理 |
+|------|------|
+| AI 控制台下混入知识库、配置、监控、系统设置 | 拆为 4 个独立一级目录：知识管理 / AI 配置 / 质量监控 / 系统 |
+| aiConsoleIconMap 不再需要 | 删除，各菜单项直接指定 icon |
+
+### Goal 3: 客服工作台 UX
+| 问题 | 处理 |
+|------|------|
+| 无页面说明，客服不知道页面用途 | 顶部加 header 卡片：说明 4 步流程 + 当前队列统计 + 当前所处阶段 |
+| 客服看到复杂三栏布局无从下手 | header 中的流程描述和当前阶段 Badge 给予明确引导 |
+
+---
+
+## 处理记录（最终）
+
+| # | 发现于 | 问题 | 状态 |
+|----|--------|------|------|
+| 1 | ScenarioModelConfigPage | 字段校验缺失 | ✅ |
+| 2 | RagTestLabPage | AB 对比参数相同 | ✅ |
+| 3 | EvaluationFeedbackPage | 反馈无法推进状态 | ✅ |
+| 4 | ServiceHealthPage | 布局未对齐 | ✅ |
+| 5 | ServiceHealthPage | 告警阈值不持久化 | ✅ |
+| 6 | Settings | 渠道/通知 Toggle 无功能 | ✅ |
+| 7 | Settings | 语言只有中文 | ✅ |
+| 8 | KnowledgeBase | 导入向导场景只读 | ✅ |
+| 9 | KnowledgeBase | Notion/Web 无说明 | ✅ |
+| 10 | All pages | 更新时间不统一 | ✅ |
+| 11 | Sidebar | AI控制台过于混杂 | ✅ |
+| 12 | CustomerService | 无页面引导 | ✅ |
+| 13 | RagTestLabPage | 无法保存到评测集 | ✅ |
