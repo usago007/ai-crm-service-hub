@@ -84,7 +84,7 @@ export default function App() {
   };
 
   const handleOpenAdmin = () => {
-    app.setCurrentPage('admin-general');
+    app.setCurrentPage('admin-settings');
   };
 
   const renderPage = () => {
@@ -263,7 +263,7 @@ export default function App() {
       case 'admin-settings':
       case 'admin-general':
       case 'admin-permissions': {
-        const adminTab = app.currentPage === 'admin-general' ? 'general' : 'permissions';
+        const adminTab = app.currentPage === 'admin-settings' ? undefined : app.currentPage === 'admin-general' ? 'general' : 'permissions';
         return (
           <Settings
             key={app.currentPage}
