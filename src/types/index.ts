@@ -837,11 +837,15 @@ export interface IngestionJob {
 
 export interface EvaluationRecord {
   id: string;
+  target: string;
+  refId: string;
   scenario: string;
   metric: string;
   score: string;
-  baseline: string;
-  status: 'good' | 'watch' | 'risk';
+  issue: string;
+  suggestion: string;
+  conclusion: 'pass' | 'optimize' | 'high_risk';
+  createdAt: string;
 }
 
 export interface AIOpsStage {
@@ -857,9 +861,13 @@ export interface AIOpsStage {
 export interface FeedbackLoopRecord {
   id: string;
   source: string;
+  refId: string;
   scenario: string;
-  signal: string;
+  issueType: string;
+  severity: 'low' | 'medium' | 'high';
+  description: string;
   action: string;
+  createTodo: boolean;
   owner: string;
   status: 'new' | 'triaged' | 'shipped';
   updatedAt: string;

@@ -15,7 +15,6 @@ interface FollowUpTasksProps {
   query: ListQuery<TaskFilters>;
   onQueryChange: (updater: (prev: ListQuery<TaskFilters>) => ListQuery<TaskFilters>) => void;
   customers: Customer[];
-  onCreateTask: () => void;
 }
 
 const priorityVariantMap: Record<FollowUpTask['priority'], BadgeVariant> = {
@@ -29,7 +28,7 @@ const taskStatusOptions = ['待处理', '进行中', 'Completed'];
 const taskPriorityOptions: FollowUpTask['priority'][] = ['Urgent', 'High', 'Normal', 'Low'];
 const taskSourceOptions = ['triage', 'retrieve', 'draft', 'review', 'execute', 'follow-up', 'resolved'];
 
-export function FollowUpTasks({ result, query, onQueryChange, customers, onCreateTask }: FollowUpTasksProps) {
+export function FollowUpTasks({ result, query, onQueryChange, customers }: FollowUpTasksProps) {
   const { t } = useT();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(result.items[0]?.id ?? null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -44,7 +43,6 @@ export function FollowUpTasks({ result, query, onQueryChange, customers, onCreat
   return (
     <div className="space-y-4">
       <SummaryHeader
-        actions={<Button onClick={onCreateTask}>{t.tasks.newTask}</Button>}
         aside={
           <div className="grid grid-cols-3 gap-3 max-[900px]:grid-cols-1">
             <StatCard label="任务总量" value={String(result.total)} detail="当前筛选条件下的跟进任务总量。" />

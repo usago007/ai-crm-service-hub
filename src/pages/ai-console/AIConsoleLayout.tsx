@@ -3,7 +3,7 @@ import { RagConfigPage } from './pages/RagConfigPage';
 import { ScenarioModelConfigPage } from './pages/ScenarioModelConfigPage';
 import { RagTestLabPage } from './pages/RagTestLabPage';
 import { EvaluationFeedbackPage } from './pages/EvaluationFeedbackPage';
-import { ServiceHealthPage } from './pages/ServiceHealthPage';
+import { ServiceHealthPage } from './pages/service-health';
 
 export function AIConsole(props: AIConsoleProps) {
   return (

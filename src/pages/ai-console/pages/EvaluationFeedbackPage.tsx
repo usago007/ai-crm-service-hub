@@ -6,7 +6,7 @@ import { EmptyState, FilterBar } from '../../../components/common/PageChrome';
 import type { AIConsoleProps } from '../types';
 import { DataTable, PageHeader, SectionCard, StatCard } from '../shared';
 import { inputCls } from '../sharedUtils';
-import { displayAuditEvent, displayFeedbackStatus, displayRiskLevel, displayRuntimeStatus, displayScenario } from '../../../utils/display';
+import { displayAuditEvent, displayEvalConclusion, displayFeedbackStatus, displayRiskLevel, displayScenario } from '../../../utils/display';
 import type { EvaluationCenterTab, EvaluationRecord, FeedbackLoopRecord } from '../../../types';
 import { Pagination } from '../../../components/common/Pagination';
 
@@ -14,11 +14,6 @@ type Props = Pick<AIConsoleProps, 'businessCase' | 'evaluations' | 'feedbackLoop
   activeTab: EvaluationCenterTab;
   onTabChange: (tab: EvaluationCenterTab) => void;
 };
-
-function safeNumber(value: unknown): string {
-  const n = Number(value);
-  return Number.isFinite(n) ? String(n) : '--';
-}
 
 export function EvaluationFeedbackPage({
   businessCase,
@@ -36,8 +31,8 @@ export function EvaluationFeedbackPage({
   const [localFeedbackLoop, setLocalFeedbackLoop] = useState(feedbackLoop);
   const [showNewEval, setShowNewEval] = useState(false);
   const [showNewFeedback, setShowNewFeedback] = useState(false);
-  const [newEval, setNewEval] = useState({ scenario: '', metric: '', score: '', baseline: '', status: 'good' as const });
-  const [newFeedback, setNewFeedback] = useState({ source: '', scenario: '', signal: '', action: '' });
+  const [newEval, setNewEval] = useState({ target: '', refId: '', scenario: '', metric: '', score: '', issue: '', suggestion: '', conclusion: 'pass' as const });
+  const [newFeedback, setNewFeedback] = useState({ source: '', refId: '', scenario: '', issueType: '', severity: 'medium' as const, description: '', action: '', createTodo: true });
 
   useEffect(() => { setLocalEvaluations(evaluations); }, [evaluations]);
   useEffect(() => { setLocalFeedbackLoop(feedbackLoop); }, [feedbackLoop]);
@@ -60,7 +55,7 @@ export function EvaluationFeedbackPage({
     setAuditPage(1);
   }
 
-  const riskCount = localEvaluations.filter(item => item.status === 'risk').length;
+  const riskCount = localEvaluations.filter(item => item.conclusion === 'high_risk').length;
   const shippedCount = localFeedbackLoop.filter(item => item.status === 'shipped').length;
   const highRiskCount = auditLogs.filter(item => item.riskLevel === 'High').length;
   const blockedCount = auditLogs.filter(item => item.outcome.includes('拦截') || item.outcome.toLowerCase().includes('blocked')).length;
@@ -111,40 +106,68 @@ export function EvaluationFeedbackPage({
   );
 
   const riskRanking = useMemo(() => {
-    const order = { risk: 0, watch: 1, good: 2 };
-    return [...localEvaluations]
-      .sort((a, b) => (order[a.status] ?? 2) - (order[b.status] ?? 2))
-      .slice(0, 8);
-  }, [localEvaluations]);
+    const grouped = new Map<string, { evals: EvaluationRecord[]; fbCount: number }>();
+    for (const e of localEvaluations) {
+      const g = grouped.get(e.scenario) || { evals: [], fbCount: 0 };
+      g.evals.push(e);
+      grouped.set(e.scenario, g);
+    }
+    for (const fb of localFeedbackLoop) {
+      const g = grouped.get(fb.scenario);
+      if (g) g.fbCount += 1;
+    }
+    const rows = Array.from(grouped.entries()).map(([scenario, g]) => {
+      const total = g.evals.length;
+      const avgScore = total > 0 ? g.evals.reduce((sum, e) => sum + parseFloat(e.score), 0) / total : 0;
+      const highRiskCount = g.evals.filter(e => e.conclusion === 'high_risk').length;
+      const optimizeCount = g.evals.filter(e => e.conclusion === 'optimize').length;
+      const worstConclusion = highRiskCount > 0 ? 'high_risk' : optimizeCount > 0 ? 'optimize' : 'pass';
+      const topMetric = g.evals.reduce((acc, e) => { acc[e.metric] = (acc[e.metric] || 0) + 1; return acc; }, {} as Record<string, number>);
+      const mainIssue = Object.entries(topMetric).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '--';
+      return { scenario, mainIssue, sampleCount: total, avgScore, worstConclusion, fbCount: g.fbCount };
+    });
+    const order = { high_risk: 0, optimize: 1, pass: 2 };
+    return rows.sort((a, b) => (order[a.worstConclusion] ?? 2) - (order[b.worstConclusion] ?? 2)).slice(0, 8);
+  }, [localEvaluations, localFeedbackLoop]);
 
   const [showAllFeedback, setShowAllFeedback] = useState(false);
   const visibleFeedback = showAllFeedback ? localFeedbackLoop : localFeedbackLoop.slice(0, 4);
 
   function handleCreateEval() {
+    const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
     setLocalEvaluations(prev => [{
       id: `EVAL-NEW-${Date.now()}`,
+      target: newEval.target,
+      refId: newEval.refId,
       scenario: newEval.scenario,
       metric: newEval.metric,
       score: newEval.score,
-      baseline: newEval.baseline,
-      status: newEval.status as EvaluationRecord['status'],
+      issue: newEval.issue,
+      suggestion: newEval.suggestion,
+      conclusion: newEval.conclusion as EvaluationRecord['conclusion'],
+      createdAt: now,
     }, ...prev]);
-    setNewEval({ scenario: '', metric: '', score: '', baseline: '', status: 'good' });
+    setNewEval({ target: '', refId: '', scenario: '', metric: '', score: '', issue: '', suggestion: '', conclusion: 'pass' });
     setShowNewEval(false);
   }
 
   function handleCreateFeedback() {
+    const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
     setLocalFeedbackLoop(prev => [{
       id: `FB-NEW-${Date.now()}`,
       source: newFeedback.source,
+      refId: newFeedback.refId,
       scenario: newFeedback.scenario,
-      signal: newFeedback.signal,
+      issueType: newFeedback.issueType,
+      severity: newFeedback.severity as FeedbackLoopRecord['severity'],
+      description: newFeedback.description,
       action: newFeedback.action,
+      createTodo: newFeedback.createTodo,
       owner: '你',
       status: 'new' as FeedbackLoopRecord['status'],
-      updatedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      updatedAt: now,
     }, ...prev]);
-    setNewFeedback({ source: '', scenario: '', signal: '', action: '' });
+    setNewFeedback({ source: '', refId: '', scenario: '', issueType: '', severity: 'medium', description: '', action: '', createTodo: true });
     setShowNewFeedback(false);
   }
 
@@ -181,29 +204,28 @@ export function EvaluationFeedbackPage({
           </div>
 
           <SectionCard title="风险场景排行">
-            {riskRanking.length > 0 && riskRanking.every(item => safeNumber(item.score) === '--' && safeNumber(item.baseline) === '--') && (
-              <div className="mb-3 rounded-[12px] border border-[var(--color-border-light)] bg-[rgba(179,92,32,0.04)] px-3.5 py-2 text-[12px] text-[var(--color-text-secondary)]">
-                当前暂无完整评测得分数据，已先展示风险场景与状态；完成新一轮评测后将展示当前得分和基线对比。
-              </div>
-            )}
             {riskRanking.length > 0 ? (
               <DataTable
                 columns={[
-                  { key: 'scenario', label: '场景', width: '22%' },
-                  { key: 'metric', label: '指标' },
-                  { key: 'score', label: '当前得分' },
-                  { key: 'baseline', label: '基线' },
-                  { key: 'status', label: '状态' },
+                  { key: 'scenario', label: '场景', width: '14%' },
+                  { key: 'mainIssue', label: '主要问题', width: '16%' },
+                  { key: 'sampleCount', label: '评测样本数' },
+                  { key: 'avgScore', label: '平均评分' },
+                  { key: 'status', label: '状态', width: '10%' },
+                  { key: 'fbCount', label: '待处理反馈' },
+                  { key: 'suggestion', label: '建议动作', width: '18%' },
                 ]}
                 emptyMessage="暂无评测数据。"
               >
                 {riskRanking.map(item => (
-                  <tr key={item.id}>
+                  <tr key={item.scenario}>
                     <td className="px-4 py-3 text-[13px] border-b border-[var(--color-border-light)]">{displayScenario(item.scenario)}</td>
-                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{item.metric}</td>
-                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] tabular-nums">{safeNumber(item.score)}</td>
-                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] tabular-nums">{safeNumber(item.baseline)}</td>
-                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant={item.status === 'good' ? 'green' : item.status === 'watch' ? 'yellow' : 'red'}>{displayRuntimeStatus(item.status)}</Badge></td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{item.mainIssue}</td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] tabular-nums text-center">{item.sampleCount}</td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] tabular-nums text-center">{item.sampleCount > 0 ? item.avgScore.toFixed(1) : '--'}</td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]"><Badge variant={item.worstConclusion === 'pass' ? 'green' : item.worstConclusion === 'optimize' ? 'yellow' : 'red'}>{displayEvalConclusion(item.worstConclusion)}</Badge></td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] text-center">{item.fbCount}</td>
+                    <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)] text-[var(--color-text-secondary)]">{item.worstConclusion === 'high_risk' ? '立即优化知识库' : item.worstConclusion === 'optimize' ? '安排评测复查' : '持续监控'}</td>
                   </tr>
                 ))}
               </DataTable>
@@ -240,13 +262,13 @@ export function EvaluationFeedbackPage({
                   {visibleFeedback.map(item => (
                     <div key={item.id} className="rounded-[18px] border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.66)] p-3.5 text-xs">
                       <div className="flex items-center justify-between gap-3 mb-1">
-                        <div className="font-medium">{item.source} · {displayScenario(item.scenario)}</div>
+                        <div className="font-medium">{item.source} · {displayScenario(item.scenario)} · {item.issueType}</div>
                         <Badge variant={item.status === 'shipped' ? 'green' : item.status === 'triaged' ? 'yellow' : 'gray'}>{displayFeedbackStatus(item.status)}</Badge>
                       </div>
-                      <div className="text-[var(--color-text-secondary)] leading-5">{item.signal}</div>
+                      <div className="text-[var(--color-text-secondary)] leading-5">{item.description}</div>
                       <div className="mt-2"><strong>建议动作：</strong> {item.action}</div>
                       <div className="mt-2 flex items-center justify-between gap-2">
-                        <div className="text-[11px] text-[var(--color-text-light)]">{item.owner} · {item.updatedAt}</div>
+                        <div className="text-[11px] text-[var(--color-text-light)]">{item.owner} · {item.updatedAt}{item.createTodo ? ' · 待办' : ''}</div>
                         {item.status !== 'shipped' ? (
                           <Button variant="ghost" size="sm" onClick={() => {
                             const next = item.status === 'new' ? 'triaged' as const : 'shipped' as const;
@@ -363,65 +385,117 @@ export function EvaluationFeedbackPage({
         </>
       ) : null}
 
-      <Modal open={showNewEval} onClose={() => setShowNewEval(false)} title="新建评测" actions={<Button size="sm" onClick={handleCreateEval} disabled={!newEval.scenario || !newEval.metric}>确认创建</Button>}>
+      <Modal open={showNewEval} onClose={() => setShowNewEval(false)} title="新建评测" actions={<><Button size="sm" variant="secondary" onClick={() => setShowNewEval(false)}>取消</Button><Button size="sm" onClick={handleCreateEval} disabled={!newEval.target || !newEval.scenario || !newEval.metric}>保存评测</Button></>}>
         <div className="space-y-4">
-          <div>
-            <div className="text-xs text-[var(--color-text-secondary)] mb-1">场景</div>
-            <select className={inputCls} value={newEval.scenario} onChange={e => setNewEval(p => ({ ...p, scenario: e.target.value }))}>
-              <option value="">选择场景</option>
-              {['Shipping', 'Refund', 'Complaint', 'Payment', 'Product Inquiry'].map(s => <option key={s} value={s}>{displayScenario(s)}</option>)}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-xs text-[var(--color-text-secondary)] mb-1">评测对象</div>
+              <select className={inputCls} value={newEval.target} onChange={e => setNewEval(p => ({ ...p, target: e.target.value }))}>
+                <option value="">选择对象</option>
+                {['AI 回复', '知识库召回', '工单处理', '客服会话'].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <div className="text-xs text-[var(--color-text-secondary)] mb-1">关联编号</div>
+              <input className={inputCls} value={newEval.refId} onChange={e => setNewEval(p => ({ ...p, refId: e.target.value }))} placeholder="如：TKT-001 / CHAT-023" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-xs text-[var(--color-text-secondary)] mb-1">评测场景</div>
+              <select className={inputCls} value={newEval.scenario} onChange={e => setNewEval(p => ({ ...p, scenario: e.target.value }))}>
+                <option value="">选择场景</option>
+                {['物流延迟', '退款申请', '投诉', '地址修改', 'VIP 支持'].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <div className="text-xs text-[var(--color-text-secondary)] mb-1">评测指标</div>
+              <select className={inputCls} value={newEval.metric} onChange={e => setNewEval(p => ({ ...p, metric: e.target.value }))}>
+                <option value="">选择指标</option>
+                {['回复准确性', '召回命中率', '口径一致性', '人工改写率', '引用覆盖率'].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
           </div>
           <div>
-            <div className="text-xs text-[var(--color-text-secondary)] mb-1">指标名称</div>
-            <input className={inputCls} value={newEval.metric} onChange={e => setNewEval(p => ({ ...p, metric: e.target.value }))} placeholder="如：准确率、召回率" />
-          </div>
-          <div>
-            <div className="text-xs text-[var(--color-text-secondary)] mb-1">得分</div>
+            <div className="text-xs text-[var(--color-text-secondary)] mb-1">评分</div>
             <input className={inputCls} value={newEval.score} onChange={e => setNewEval(p => ({ ...p, score: e.target.value }))} placeholder="如：92.5" />
           </div>
           <div>
-            <div className="text-xs text-[var(--color-text-secondary)] mb-1">基线</div>
-            <input className={inputCls} value={newEval.baseline} onChange={e => setNewEval(p => ({ ...p, baseline: e.target.value }))} placeholder="如：85.0" />
+            <div className="text-xs text-[var(--color-text-secondary)] mb-1">问题说明</div>
+            <textarea className={`${inputCls} h-20 py-2 resize-none`} value={newEval.issue} onChange={e => setNewEval(p => ({ ...p, issue: e.target.value }))} placeholder="描述本次评测发现的问题" />
           </div>
           <div>
-            <div className="text-xs text-[var(--color-text-secondary)] mb-1">状态</div>
-            <select className={inputCls} value={newEval.status} onChange={e => setNewEval(p => ({ ...p, status: e.target.value as typeof newEval.status }))}>
-              <option value="good">良好</option>
-              <option value="watch">观察</option>
-              <option value="risk">风险</option>
+            <div className="text-xs text-[var(--color-text-secondary)] mb-1">处理建议</div>
+            <textarea className={`${inputCls} h-16 py-2 resize-none`} value={newEval.suggestion} onChange={e => setNewEval(p => ({ ...p, suggestion: e.target.value }))} placeholder="建议如何优化知识库、RAG 配置或客服策略" />
+          </div>
+          <div>
+            <div className="text-xs text-[var(--color-text-secondary)] mb-1">评测结论</div>
+            <select className={inputCls} value={newEval.conclusion} onChange={e => setNewEval(p => ({ ...p, conclusion: e.target.value as typeof newEval.conclusion }))}>
+              <option value="pass">通过</option>
+              <option value="optimize">需优化</option>
+              <option value="high_risk">高风险</option>
             </select>
           </div>
         </div>
       </Modal>
 
-      <Modal open={showNewFeedback} onClose={() => setShowNewFeedback(false)} title="提交反馈" actions={<Button size="sm" onClick={handleCreateFeedback} disabled={!newFeedback.source || !newFeedback.scenario}>确认提交</Button>}>
+      <Modal open={showNewFeedback} onClose={() => setShowNewFeedback(false)} title="提交反馈" actions={<><Button size="sm" variant="secondary" onClick={() => setShowNewFeedback(false)}>取消</Button><Button size="sm" onClick={handleCreateFeedback} disabled={!newFeedback.source || !newFeedback.scenario}>提交反馈</Button></>}>
         <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-xs text-[var(--color-text-secondary)] mb-1">来源</div>
+              <select className={inputCls} value={newFeedback.source} onChange={e => setNewFeedback(p => ({ ...p, source: e.target.value }))}>
+                <option value="">选择来源</option>
+                {['客服工作台', '工单审核', '用户反馈', '召回测试', '人工质检'].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <div className="text-xs text-[var(--color-text-secondary)] mb-1">关联对象</div>
+              <input className={inputCls} value={newFeedback.refId} onChange={e => setNewFeedback(p => ({ ...p, refId: e.target.value }))} placeholder="如：TKT-001 / CHAT-023 / 文档名称" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-xs text-[var(--color-text-secondary)] mb-1">场景</div>
+              <select className={inputCls} value={newFeedback.scenario} onChange={e => setNewFeedback(p => ({ ...p, scenario: e.target.value }))}>
+                <option value="">选择场景</option>
+                {['物流延迟', '退款申请', '投诉', '地址修改', 'VIP 支持'].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <div className="text-xs text-[var(--color-text-secondary)] mb-1">问题类型</div>
+              <select className={inputCls} value={newFeedback.issueType} onChange={e => setNewFeedback(p => ({ ...p, issueType: e.target.value }))}>
+                <option value="">选择类型</option>
+                {['知识缺失', '召回错误', '回复不准', '口径冲突', '人工改判'].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
           <div>
-            <div className="text-xs text-[var(--color-text-secondary)] mb-1">来源</div>
-            <select className={inputCls} value={newFeedback.source} onChange={e => setNewFeedback(p => ({ ...p, source: e.target.value }))}>
-              <option value="">选择来源</option>
-              <option value="人工复核">人工复核</option>
-              <option value="护栏拦截">护栏拦截</option>
-              <option value="客户投诉">客户投诉</option>
-              <option value="知识异常">知识异常</option>
+            <div className="text-xs text-[var(--color-text-secondary)] mb-1">影响程度</div>
+            <select className={inputCls} value={newFeedback.severity} onChange={e => setNewFeedback(p => ({ ...p, severity: e.target.value as typeof newFeedback.severity }))}>
+              <option value="low">低</option>
+              <option value="medium">中</option>
+              <option value="high">高</option>
             </select>
           </div>
           <div>
-            <div className="text-xs text-[var(--color-text-secondary)] mb-1">场景</div>
-            <select className={inputCls} value={newFeedback.scenario} onChange={e => setNewFeedback(p => ({ ...p, scenario: e.target.value }))}>
-              <option value="">选择场景</option>
-              {['Shipping', 'Refund', 'Complaint', 'Payment', 'Product Inquiry'].map(s => <option key={s} value={s}>{displayScenario(s)}</option>)}
-            </select>
-          </div>
-          <div>
-            <div className="text-xs text-[var(--color-text-secondary)] mb-1">信号描述</div>
-            <textarea className={`${inputCls} h-20 py-2 resize-none`} value={newFeedback.signal} onChange={e => setNewFeedback(p => ({ ...p, signal: e.target.value }))} placeholder="描述反馈信号..." />
+            <div className="text-xs text-[var(--color-text-secondary)] mb-1">问题描述</div>
+            <textarea className={`${inputCls} h-20 py-2 resize-none`} value={newFeedback.description} onChange={e => setNewFeedback(p => ({ ...p, description: e.target.value }))} placeholder="描述发现的 AI 质量问题" />
           </div>
           <div>
             <div className="text-xs text-[var(--color-text-secondary)] mb-1">建议动作</div>
-            <textarea className={`${inputCls} h-16 py-2 resize-none`} value={newFeedback.action} onChange={e => setNewFeedback(p => ({ ...p, action: e.target.value }))} placeholder="建议的处理方式..." />
+            <textarea className={`${inputCls} h-16 py-2 resize-none`} value={newFeedback.action} onChange={e => setNewFeedback(p => ({ ...p, action: e.target.value }))} placeholder="建议补充知识、调整规则或进入人工处理" />
           </div>
+          <label className="flex items-center gap-3 text-sm cursor-pointer">
+            <span className="text-xs text-[var(--color-text-secondary)]">是否进入待办</span>
+            <button
+              type="button"
+              className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${newFeedback.createTodo ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'}`}
+              onClick={() => setNewFeedback(p => ({ ...p, createTodo: !p.createTodo }))}
+            >
+              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${newFeedback.createTodo ? 'translate-x-[18px]' : 'translate-x-0'}`} />
+            </button>
+          </label>
         </div>
       </Modal>
     </div>

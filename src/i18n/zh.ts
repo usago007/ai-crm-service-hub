@@ -181,7 +181,6 @@ export const zh: typeof en = {
   tasks: {
     title: '跟进任务',
     active: '个进行中',
-    newTask: '+ 新建任务',
     createTask: '创建跟进任务',
     taskDescription: '任务描述',
     describeTask: '描述任务...',

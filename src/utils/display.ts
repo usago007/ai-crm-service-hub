@@ -166,6 +166,18 @@ const KNOWLEDGE_GAP_LABELS: Record<string, string> = {
   version_conflict: '版本冲突',
 };
 
+const EVAL_CONCLUSION_LABELS: Record<string, string> = {
+  pass: '通过',
+  optimize: '需优化',
+  high_risk: '高风险',
+};
+
+const SEVERITY_LABELS: Record<string, string> = {
+  low: '低',
+  medium: '中',
+  high: '高',
+};
+
 const FEEDBACK_STATUS_LABELS: Record<FeedbackLoopRecord['status'], string> = {
   new: '新增',
   triaged: '已分流',
@@ -239,6 +251,14 @@ export function displayRiskLevel(value: string) {
 
 export function displayRuntimeStatus(value: string) {
   return RUNTIME_STATUS_LABELS[value] ?? value;
+}
+
+export function displayEvalConclusion(value: string) {
+  return EVAL_CONCLUSION_LABELS[value] ?? value;
+}
+
+export function displaySeverity(value: string) {
+  return SEVERITY_LABELS[value] ?? value;
 }
 
 export function displayKnowledgeGap(value: string | null) {

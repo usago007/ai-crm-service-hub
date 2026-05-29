@@ -467,7 +467,7 @@ export function KnowledgeBase({
         ) : null}
       </div>
 
-      <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title="创建知识库" actions={<Button size="sm" onClick={() => { if (newKbName.trim()) { onCreateKnowledgeBase(newKbName.trim(), newKbDesc.trim() || undefined, newKbTags.split(/[,，]/).map(s => s.trim()).filter(Boolean)); setShowCreateModal(false); } }} disabled={!newKbName.trim()}>确认创建</Button>}>
+      <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title="创建知识库" actions={<><Button variant="ghost" size="sm" onClick={() => setShowCreateModal(false)}>取消</Button><Button size="sm" onClick={() => { if (newKbName.trim()) { onCreateKnowledgeBase(newKbName.trim(), newKbDesc.trim() || undefined, newKbTags.split(/[,，]/).map(s => s.trim()).filter(Boolean)); setShowCreateModal(false); } }} disabled={!newKbName.trim()}>确认创建</Button></>}>
         <div className="space-y-4">
           <div>
             <div className="text-xs text-[var(--color-text-secondary)] mb-1">名称 <span className="text-[var(--color-danger)]">*</span></div>
@@ -1172,7 +1172,7 @@ export function KnowledgeBase({
           </div>
         </Modal>
 
-        <Modal open={editMetaModalOpen} onClose={() => setEditMetaModalOpen(false)} title="编辑知识库" actions={<Button size="sm" onClick={() => { if (editMetaName.trim() && selectedKnowledgeBase) { onUpdateKnowledgeBaseMeta(selectedKnowledgeBase.id, { name: editMetaName.trim(), description: editMetaDesc.trim() || undefined, tags: editMetaTags.split(/[,，]/).map(s => s.trim()).filter(Boolean), owner: editMetaOwner.trim() || undefined }); setEditMetaModalOpen(false); } }} disabled={!editMetaName.trim()}>保存</Button>}>
+        <Modal open={editMetaModalOpen} onClose={() => setEditMetaModalOpen(false)} title="编辑知识库" actions={<><Button variant="ghost" size="sm" onClick={() => setEditMetaModalOpen(false)}>取消</Button><Button size="sm" onClick={() => { if (editMetaName.trim() && selectedKnowledgeBase) { onUpdateKnowledgeBaseMeta(selectedKnowledgeBase.id, { name: editMetaName.trim(), description: editMetaDesc.trim() || undefined, tags: editMetaTags.split(/[,，]/).map(s => s.trim()).filter(Boolean), owner: editMetaOwner.trim() || undefined }); setEditMetaModalOpen(false); } }} disabled={!editMetaName.trim()}>保存</Button></>}>
           <div className="space-y-4">
             <div>
               <div className="text-xs text-[var(--color-text-secondary)] mb-1">名称</div>

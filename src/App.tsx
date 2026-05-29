@@ -78,10 +78,6 @@ export default function App() {
     app.setCurrentPage(page);
   };
 
-  const handleCreateTask = () => {
-    app.pushToast('当前任务由工单执行结果自动驱动生成', 'info');
-  };
-
   const handleOpenAdmin = () => {
     app.setCurrentPage('admin-settings');
   };
@@ -256,7 +252,6 @@ export default function App() {
             query={app.taskQuery}
             onQueryChange={app.setTaskQuery}
             customers={app.legacyCustomers}
-            onCreateTask={handleCreateTask}
           />
         );
       case 'admin-settings':

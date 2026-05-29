@@ -82,17 +82,6 @@ export const FEEDBACK_ITEMS = [
   { ticketId: 'TKT-001', scenario: 'Shipping', agentAction: 'Adopted', editRate: '8%', feedbackLabel: 'Good', suggestedImprovement: 'No action', status: 'Closed' },
 ];
 
-export const INGESTION_RECORDS = [
-  { id: 'DOC-001', name: 'Shipping Delay Policy v2.1.pdf', sourceType: 'PDF', knowledgeType: 'Policy', scenario: 'Shipping', language: 'EN', owner: 'Ops', parseStatus: 'Parsed', chunkStatus: 'Indexed', embeddingStatus: 'Indexed', indexStatus: 'Published', chunkCount: 32, vectorCount: 32, version: 'v2.1', lastSync: '2026-05-20 08:30' },
-  { id: 'DOC-002', name: 'Refund Policy v3.0.docx', sourceType: 'DOCX', knowledgeType: 'Policy', scenario: 'Refund', language: 'EN', owner: 'CS Lead', parseStatus: 'Parsed', chunkStatus: 'Indexed', embeddingStatus: 'Indexed', indexStatus: 'Published', chunkCount: 24, vectorCount: 24, version: 'v3.0', lastSync: '2026-05-19 14:00' },
-  { id: 'DOC-003', name: 'Product Specs Catalog.xlsx', sourceType: 'XLSX', knowledgeType: 'Product Spec', scenario: 'Product Inquiry', language: 'Multi', owner: 'Product Team', parseStatus: 'Parsed', chunkStatus: 'Chunking', embeddingStatus: 'Pending', indexStatus: 'Pending', chunkCount: 86, vectorCount: 0, version: 'v3.1', lastSync: '2026-05-21 09:15' },
-  { id: 'DOC-004', name: 'FAQ Center Export.csv', sourceType: 'CSV', knowledgeType: 'FAQ', scenario: 'Shipping', language: 'EN', owner: 'Support', parseStatus: 'Parsed', chunkStatus: 'Indexed', embeddingStatus: 'Indexed', indexStatus: 'Published', chunkCount: 48, vectorCount: 48, version: 'v2.0', lastSync: '2026-05-20 10:45' },
-  { id: 'DOC-005', name: 'Compensation Guidelines.html', sourceType: 'HTML', knowledgeType: 'Business Rule', scenario: 'Complaint', language: 'EN', owner: 'Supervisor', parseStatus: 'Parsing', chunkStatus: 'Pending', embeddingStatus: 'Pending', indexStatus: 'Pending', chunkCount: 0, vectorCount: 0, version: 'v1.5', lastSync: '2026-05-21 10:00' },
-  { id: 'DOC-006', name: 'Reply Templates.txt', sourceType: 'TXT', knowledgeType: 'Reply Template', scenario: 'Refund', language: 'EN', owner: 'CS Lead', parseStatus: 'Parsed', chunkStatus: 'Indexed', embeddingStatus: 'Indexed', indexStatus: 'Published', chunkCount: 16, vectorCount: 16, version: 'v1.8', lastSync: '2026-05-17 16:20' },
-  { id: 'DOC-007', name: 'VIP Customer Protocol.pdf', sourceType: 'PDF', knowledgeType: 'Policy', scenario: 'Complaint', language: 'EN', owner: 'Supervisor', parseStatus: 'Parsed', chunkStatus: 'Embedded', embeddingStatus: 'Embedded', indexStatus: 'Pending', chunkCount: 12, vectorCount: 12, version: 'v2.0', lastSync: '2026-05-18 11:30' },
-  { id: 'DOC-008', name: 'Promotion Rules Q2.docx', sourceType: 'DOCX', knowledgeType: 'Business Rule', scenario: 'Promotion', language: 'EN', owner: 'Marketing', parseStatus: 'Failed', chunkStatus: 'Failed', embeddingStatus: 'Failed', indexStatus: 'Failed', chunkCount: 0, vectorCount: 0, version: 'v1.2', lastSync: '2026-05-12 09:00' },
-];
-
 export const RAG_CONFIG_DEFAULTS = {
   parser: { enableOCR: true, extractTables: true, extractHeadings: true, preserveStructure: true },
   chunking: { strategy: 'by heading', chunkSize: 500, chunkOverlap: 80, minChunkLength: 50, maxChunkLength: 1000 },

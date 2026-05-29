@@ -281,7 +281,7 @@ function PermissionsAndTeam({ settings, permissionBoundaries, onUpdateSettings, 
         </div>
       </SectionCard>
 
-      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="添加成员" actions={
+      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="添加成员" actions={<><Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}>取消</Button>
         <Button size="sm" onClick={() => {
           if (newName.trim()) {
             onUpdateSettings(prev => ({
@@ -302,7 +302,7 @@ function PermissionsAndTeam({ settings, permissionBoundaries, onUpdateSettings, 
             }));
             setShowAdd(false);
           }
-        }} disabled={!newName.trim()}>确认添加</Button>
+        }} disabled={!newName.trim()}>确认添加</Button></>
       }>
         <div className="space-y-4">
           <div>

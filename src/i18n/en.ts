@@ -179,7 +179,6 @@ export const en = {
   tasks: {
     title: 'Follow-up Tasks',
     active: 'active',
-    newTask: '+ New Task',
     createTask: 'Create Follow-up Task',
     taskDescription: 'Task Description',
     describeTask: 'Describe the task...',
