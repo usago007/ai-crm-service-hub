@@ -616,6 +616,8 @@ const ragConfig: RagConfigSnapshot = {
     includeRiskPolicy: true,
     includeBlockedClaims: true,
     outputFormat: '可编辑回复草稿',
+    replyTone: 'standard',
+    manualReviewStrategy: 'high_risk_only',
   },
   updatedAt: '2026-05-22 13:40',
 };

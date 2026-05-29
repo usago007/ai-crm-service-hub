@@ -1,5 +1,5 @@
 import type { AIConsoleProps } from './types';
-import { RagConfigPage } from './pages/RagConfigPage';
+import { RagConfigPage } from './pages/rag-config';
 import { ScenarioModelConfigPage } from './pages/ScenarioModelConfigPage';
 import { RagTestLabPage } from './pages/RagTestLabPage';
 import { EvaluationFeedbackPage } from './pages/EvaluationFeedbackPage';

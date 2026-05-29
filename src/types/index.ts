@@ -360,6 +360,8 @@ export interface PromptAssemblyConfig {
   includeRiskPolicy: boolean;
   includeBlockedClaims: boolean;
   outputFormat: string;
+  replyTone: 'concise' | 'standard' | 'detailed';
+  manualReviewStrategy: 'all' | 'high_risk_only' | 'low_risk_auto';
   defaultSystemPrompt?: string;
 }
 

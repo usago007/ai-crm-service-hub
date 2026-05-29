@@ -27,7 +27,7 @@ export function GlobalStatusHero({
   onRunDiagnostic,
 }: GlobalStatusHeroProps) {
   return (
-    <section className="rounded-[20px] border border-[rgba(15,23,42,0.06)] bg-[rgba(255,255,255,0.82)] shadow-[0_8px_24px_rgba(15,23,42,0.04)] px-6 py-[18px] min-h-[96px]">
+    <section className="rounded-[20px] border border-[rgba(15,23,42,0.06)] bg-[rgba(255,255,255,0.82)] shadow-[0_8px_24px_rgba(15,23,42,0.04)] px-6 py-4 min-h-[104px]">
       <div className="flex items-center gap-8 max-[1100px]:flex-col max-[1100px]:items-stretch">
         {/* 左侧：状态结论 */}
         <div className="min-w-0 flex-1">
@@ -43,7 +43,7 @@ export function GlobalStatusHero({
         </div>
 
         {/* 右侧：检查时间 + 运行诊断 */}
-        <div className="w-[200px] flex-shrink-0 flex flex-col items-end justify-center gap-2">
+        <div className="w-[180px] flex-shrink-0 flex flex-col items-end justify-center gap-2 text-right">
           <span className="text-[12px] text-[var(--color-text-light)]">最近检查</span>
           <span className="text-[13px] text-[var(--color-text)]">{lastCheckedAt}</span>
           <Button size="sm" variant="primary" onClick={() => { void onRunDiagnostic(); }}>
