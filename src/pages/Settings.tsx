@@ -95,7 +95,9 @@ function PermissionsAndTeam({ settings, agents: initialAgents }: { settings: Set
         <StatCard label="团队成员" value={String(members.length)} detail="均继承对应角色权限。" />
       </div>
 
-      <PanelCard title="角色定义" description="每个角色预设了一组 AI 操作权限。成员分配角色后自动继承这些权限。">
+      <div className="mb-5">
+        <div className="text-sm font-semibold mb-1">角色定义</div>
+        <div className="text-xs text-[var(--color-text-secondary)] mb-3">每个角色预设了一组 AI 操作权限。成员分配角色后自动继承这些权限。</div>
         <DataTable columns={[
           { key: 'role', label: '角色', width: '16%' },
           { key: 'scope', label: '职责范围', width: '28%' },
@@ -115,9 +117,11 @@ function PermissionsAndTeam({ settings, agents: initialAgents }: { settings: Set
             </tr>
           ))}
         </DataTable>
-      </PanelCard>
+      </div>
 
-      <PanelCard title="成员分配" description="每位成员分配一个角色，继承该角色的权限。可随时调整角色。">
+      <div>
+        <div className="text-sm font-semibold mb-1 mt-5">成员分配</div>
+        <div className="text-xs text-[var(--color-text-secondary)] mb-3">每位成员分配一个角色，继承该角色的权限。可随时调整角色。</div>
         <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
           <div className="text-xs text-[var(--color-text-secondary)]">共 {members.length} 人</div>
           <Button size="sm" onClick={() => { setNewName(''); setNewRole('客服专员'); setShowAdd(true); }}>添加成员</Button>
@@ -153,7 +157,7 @@ function PermissionsAndTeam({ settings, agents: initialAgents }: { settings: Set
             </tr>
           ))}
         </DataTable>
-      </PanelCard>
+      </div>
 
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="添加成员" actions={
         <Button size="sm" onClick={() => { if (newName.trim()) { setMembers(prev => [...prev, { name: newName.trim(), role: newRole }]); setShowAdd(false); } }} disabled={!newName.trim()}>确认添加</Button>
@@ -195,7 +199,7 @@ export function Settings({ lang, onLanguageChange, settings, agents, permissionB
             </div>
           </div>
         </div>
-        <div>{renderTabContent(tab, lang, onLanguageChange, settings, agents, t)}</div>
+        <PanelCard>{renderTabContent(tab, lang, onLanguageChange, settings, agents, t)}</PanelCard>
       </div>
     );
   }
