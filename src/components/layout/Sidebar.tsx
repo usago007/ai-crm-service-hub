@@ -1,6 +1,6 @@
 import type { FollowUpTask, NavKey, Ticket } from '../../types';
 import { useT } from '../../i18n';
-import { Activity, BarChart3, CheckSquare, Cpu, Database, FlaskConical, LayoutDashboard, Map, Package, PanelLeftClose, PanelLeftOpen, Settings, Shield, SlidersHorizontal, TicketCheck, Users } from 'lucide-react';
+import { Activity, BarChart3, CheckSquare, Cpu, Database, FlaskConical, LayoutDashboard, Map, MessageSquare, Package, PanelLeftClose, PanelLeftOpen, Settings, Shield, SlidersHorizontal, TicketCheck, Users } from 'lucide-react';
 
 interface SidebarProps {
   collapsed: boolean;
