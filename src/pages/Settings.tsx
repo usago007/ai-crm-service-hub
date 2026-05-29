@@ -6,6 +6,7 @@ import { DataTable } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
 import { Toggle } from '../components/common/Toggle';
 import { PanelCard, StatCard } from '../components/common/PageChrome';
+import { SectionCard } from './ai-console/shared';
 import { useT, type Language } from '../i18n';
 import { inputCls } from './ai-console/sharedUtils';
 import { Globe, Shield } from 'lucide-react';
@@ -42,35 +43,31 @@ const notificationLabels: Record<string, string> = {
 
 function renderTabContent(tab: string, lang: Language, onLanguageChange: (l: Language) => void, settings: SettingsData, agents: Agent[], t: ReturnType<typeof useT>['t']) {
   if (tab === 'general') return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 max-[900px]:grid-cols-1">
-        <div className="space-y-5">
-          <div>
-            <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-2">{t.settings.language}</label>
-            <select className={inputCls} value={lang} onChange={e => onLanguageChange(e.target.value as Language)}>
-              <option value="zh">简体中文</option>
-              <option value="en">English</option>
-            </select>
-          </div>
-          <InfoCard label={t.settings.timezone} value={settings.general.timezone} />
-          <InfoCard label={t.settings.notificationDelivery} value={settings.general.notifications} />
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="rounded-[18px] border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.55)] p-3">
+          <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--color-text-light)]">{t.settings.language}</div>
+          <select className={`${inputCls} mt-2`} value={lang} onChange={e => onLanguageChange(e.target.value as Language)}>
+            <option value="zh">简体中文</option>
+            <option value="en">English</option>
+          </select>
         </div>
-        <div className="space-y-4">
-          <div>
-            <div className="text-xs font-semibold text-[var(--color-text)] mb-2">服务渠道</div>
-            {Object.entries(settings.channels).map(([key, v]) => (
-              <Toggle key={key} label={channelLabels[key] ?? key} on={v} onClick={() => {}} />
-            ))}
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-[var(--color-text)] mb-2">通知偏好</div>
-            {Object.entries(settings.notifications).map(([key, v]) => (
-              <Toggle key={key} label={notificationLabels[key] ?? key} on={v} onClick={() => {}} />
-            ))}
-          </div>
-          <div className="text-[11px] text-[var(--color-text-light)]">渠道和通知开关当前为只读快照，编辑功能将在后续版本接入。</div>
-        </div>
+        <InfoCard label={t.settings.timezone} value={settings.general.timezone} />
+        <InfoCard label={t.settings.notificationDelivery} value={settings.general.notifications} />
       </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <SectionCard title="服务渠道">
+          {Object.entries(settings.channels).map(([key, v]) => (
+            <Toggle key={key} label={channelLabels[key] ?? key} on={v} onClick={() => {}} />
+          ))}
+        </SectionCard>
+        <SectionCard title="通知偏好">
+          {Object.entries(settings.notifications).map(([key, v]) => (
+            <Toggle key={key} label={notificationLabels[key] ?? key} on={v} onClick={() => {}} />
+          ))}
+        </SectionCard>
+      </div>
+      <div className="text-[11px] text-[var(--color-text-light)]">渠道和通知开关当前为只读快照，编辑功能将在后续版本接入。</div>
     </div>
   );
 
