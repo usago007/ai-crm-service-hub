@@ -568,7 +568,7 @@ export function useServiceHubApp() {
       sourceLabel: knowledgeWizardDraft.fileName || '已导入文本',
       chunkCount: 0,
       vectorCount: 0,
-      indexMode: knowledgeWizardDraft.retrieval.rerankerEnabled ? '高质量检索' : '经济检索',
+      indexMode: knowledgeWizardDraft.retrieval.rerankerEnabled ? '高质量检索' : '标准检索',
       processedAt: nowUiStamp(),
     });
 
@@ -577,7 +577,8 @@ export function useServiceHubApp() {
         setKnowledgeProcessingResult(prev => prev && prev.documentId === document.id ? {
           ...prev,
           status: 'failed',
-          failureReason: document.parseError ?? '处理链路检测到版本冲突，当前文档未进入可发布状态。',
+          failureReason: document.parseError ?? '检测到文档版本冲突，当前文件与已有入库记录存在重复或不一致内容。',
+          failureStage: '写入知识库',
           processedAt: nowUiStamp(),
         } : prev);
         return;

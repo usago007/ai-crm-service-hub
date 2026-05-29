@@ -641,7 +641,7 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
         chunkCount: 0,
         vectorCount: 0,
         coverageScore: 0,
-        parseError: request.scenario === 'Complaint' ? '投诉场景模拟注入版本冲突，用于演示失败分支。' : undefined,
+        parseError: request.scenario === 'Complaint' ? '检测到文档版本冲突，当前文件与已有入库记录存在重复或不一致内容。' : undefined,
       };
       const job: IngestionJob = {
         id: `JOB-${String(next.ingestionJobs.length + 1).padStart(3, '0')}`,

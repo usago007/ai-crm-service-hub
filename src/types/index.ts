@@ -310,6 +310,7 @@ export interface KnowledgeProcessingResult {
   indexMode: string;
   processedAt: string;
   failureReason?: string;
+  failureStage?: string;
 }
 
 export interface ParserConfig {
