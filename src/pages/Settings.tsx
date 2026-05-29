@@ -98,11 +98,11 @@ function PermissionsAndTeam({ settings, agents: initialAgents }: { settings: Set
       <PanelCard title="角色定义" description="每个角色预设了一组 AI 操作权限。成员分配角色后自动继承这些权限。">
         <DataTable columns={[
           { key: 'role', label: '角色', width: '16%' },
-          { key: 'scope', label: '职责范围', width: '22%' },
-          { key: 'suggest', label: 'AI 建议' },
-          { key: 'send', label: '发送' },
-          { key: 'review', label: '复核' },
-          { key: 'knowledge', label: '知识访问', width: '12%' },
+          { key: 'scope', label: '职责范围', width: '28%' },
+          { key: 'suggest', label: 'AI 建议', width: '14%' },
+          { key: 'send', label: '发送', width: '12%' },
+          { key: 'review', label: '复核', width: '12%' },
+          { key: 'knowledge', label: '知识访问', width: '18%' },
         ]} emptyMessage="暂无角色定义。" className="rounded-[20px]">
           {settings.permissions.roleProfiles.map(profile => (
             <tr key={profile.role}>
@@ -123,10 +123,10 @@ function PermissionsAndTeam({ settings, agents: initialAgents }: { settings: Set
           <Button size="sm" onClick={() => { setNewName(''); setNewRole('客服专员'); setShowAdd(true); }}>添加成员</Button>
         </div>
         <DataTable columns={[
-          { key: 'name', label: '姓名', width: '18%' },
-          { key: 'role', label: '角色', width: '18%' },
-          { key: 'status', label: '状态', width: '12%' },
-          { key: 'actions', label: '操作', width: '120px' },
+          { key: 'name', label: '姓名', width: '22%' },
+          { key: 'role', label: '角色', width: '22%' },
+          { key: 'status', label: '状态', width: '16%' },
+          { key: 'actions', label: '操作', width: '140px' },
         ]} emptyMessage="暂无成员。" className="rounded-[20px]">
           {members.map((agent, i) => (
             <tr key={agent.name}>
@@ -195,7 +195,7 @@ export function Settings({ lang, onLanguageChange, settings, agents, permissionB
             </div>
           </div>
         </div>
-        <PanelCard>{renderTabContent(tab, lang, onLanguageChange, settings, agents, t)}</PanelCard>
+        <div>{renderTabContent(tab, lang, onLanguageChange, settings, agents, t)}</div>
       </div>
     );
   }
