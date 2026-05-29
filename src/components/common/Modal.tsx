@@ -22,7 +22,7 @@ export function Modal({ open, onClose, title, children, actions }: ModalProps) {
         {(title || actions) ? (
           <div className="px-6 py-4 border-b border-[var(--color-border-light)] flex items-center justify-between gap-3">
             {title ? <div className="text-base font-semibold">{title}</div> : <div />}
-            {actions ?? <Button variant="ghost" size="sm" onClick={onClose}>关闭</Button>}
+            {actions ? <div className="flex items-center gap-2">{actions}<Button variant="ghost" size="sm" onClick={onClose}>关闭</Button></div> : <Button variant="ghost" size="sm" onClick={onClose}>关闭</Button>}
           </div>
         ) : null}
         <div className="p-6">

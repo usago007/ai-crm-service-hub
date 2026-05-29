@@ -156,7 +156,10 @@ function PermissionsAndTeam({ settings, agents: initialAgents }: { settings: Set
       </PanelCard>
 
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="添加成员" actions={
-        <Button size="sm" onClick={() => { if (newName.trim()) { setMembers(prev => [...prev, { name: newName.trim(), role: newRole }]); setShowAdd(false); } }} disabled={!newName.trim()}>确认添加</Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setShowAdd(false)}>取消</Button>
+          <Button size="sm" onClick={() => { if (newName.trim()) { setMembers(prev => [...prev, { name: newName.trim(), role: newRole }]); setShowAdd(false); } }} disabled={!newName.trim()}>确认添加</Button>
+        </div>
       }>
         <div className="space-y-4">
           <div>
