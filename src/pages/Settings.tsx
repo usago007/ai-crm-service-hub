@@ -8,7 +8,7 @@ import { Toggle } from '../components/common/Toggle';
 import { PanelCard, StatCard } from '../components/common/PageChrome';
 import { useT, type Language } from '../i18n';
 import { inputCls } from './ai-console/sharedUtils';
-import { Bell, Globe, MessageSquare, Shield } from 'lucide-react';
+import { Globe, Shield } from 'lucide-react';
 
 interface SettingsProps {
   lang: Language;
@@ -22,8 +22,6 @@ interface SettingsProps {
 const tabs = [
   { key: 'general', label: '通用', icon: Globe },
   { key: 'permissions', label: '权限', icon: Shield },
-  { key: 'channels', label: '渠道', icon: MessageSquare },
-  { key: 'notifications', label: '通知', icon: Bell },
 ] as const;
 
 const channelLabels: Record<string, string> = {
@@ -45,39 +43,40 @@ const notificationLabels: Record<string, string> = {
 function renderTabContent(tab: string, lang: Language, onLanguageChange: (l: Language) => void, settings: SettingsData, agents: Agent[], t: ReturnType<typeof useT>['t']) {
   if (tab === 'general') return (
     <div className="space-y-5">
-      <div>
-        <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-2">{t.settings.language}</label>
-        <select className={inputCls} value={lang} onChange={e => onLanguageChange(e.target.value as Language)}>
-          <option value="zh">简体中文</option>
-          <option value="en">English</option>
-        </select>
-      </div>
-      <div className="grid grid-cols-2 gap-3 text-xs max-[900px]:grid-cols-1">
-        <InfoCard label={t.settings.timezone} value={settings.general.timezone} />
-        <InfoCard label={t.settings.notificationDelivery} value={settings.general.notifications} />
+      <div className="grid grid-cols-2 gap-3 max-[900px]:grid-cols-1">
+        <div className="space-y-5">
+          <div>
+            <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-2">{t.settings.language}</label>
+            <select className={inputCls} value={lang} onChange={e => onLanguageChange(e.target.value as Language)}>
+              <option value="zh">简体中文</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+          <InfoCard label={t.settings.timezone} value={settings.general.timezone} />
+          <InfoCard label={t.settings.notificationDelivery} value={settings.general.notifications} />
+        </div>
+        <div className="space-y-4">
+          <div>
+            <div className="text-xs font-semibold text-[var(--color-text)] mb-2">服务渠道</div>
+            {Object.entries(settings.channels).map(([key, v]) => (
+              <Toggle key={key} label={channelLabels[key] ?? key} on={v} onClick={() => {}} />
+            ))}
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-[var(--color-text)] mb-2">通知偏好</div>
+            {Object.entries(settings.notifications).map(([key, v]) => (
+              <Toggle key={key} label={notificationLabels[key] ?? key} on={v} onClick={() => {}} />
+            ))}
+          </div>
+          <div className="text-[11px] text-[var(--color-text-light)]">渠道和通知开关当前为只读快照，编辑功能将在后续版本接入。</div>
+        </div>
       </div>
     </div>
   );
 
   if (tab === 'permissions') return <PermissionsAndTeam settings={settings} agents={agents} />;
 
-  if (tab === 'channels') return (
-    <div>
-      {Object.entries(settings.channels).map(([key, v]) => (
-        <Toggle key={key} label={channelLabels[key] ?? key} on={v} onClick={() => {}} />
-      ))}
-      <div className="text-xs text-[var(--color-text-light)] mt-4">渠道开关当前为只读快照，编辑功能将在后续版本接入。</div>
-    </div>
-  );
-
-  return (
-    <div>
-      {Object.entries(settings.notifications).map(([key, v]) => (
-        <Toggle key={key} label={notificationLabels[key] ?? key} on={v} onClick={() => {}} />
-      ))}
-      <div className="text-xs text-[var(--color-text-light)] mt-4">通知开关当前为只读快照，编辑功能将在后续版本接入。</div>
-    </div>
-  );
+  return null;
 }
 
 function PermissionsAndTeam({ settings, agents: initialAgents }: { settings: SettingsData; agents: Agent[] }) {
@@ -194,7 +193,7 @@ export function Settings({ lang, onLanguageChange, settings, agents, permissionB
             <div className="min-w-0">
               <div className="text-[20px] font-semibold tracking-[-0.02em]">{activeTabItem.label}</div>
               <div className="text-sm text-[var(--color-text-secondary)] mt-1 leading-6">
-                {tab === 'general' ? '配置语言环境、时区和通知偏好。' : tab === 'permissions' ? '管理角色权限与团队成员分配。' : tab === 'channels' ? '启用或禁用客户服务渠道。' : '管理消息提醒规则和通知偏好。'}
+                {tab === 'general' ? '配置语言环境、时区、服务渠道和通知偏好。' : '管理角色权限与团队成员分配。'}
               </div>
             </div>
           </div>

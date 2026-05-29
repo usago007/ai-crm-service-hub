@@ -22,7 +22,7 @@ function getBreadcrumbPath(page: NavKey, t: ReturnType<typeof getTranslations>, 
   if (page === 'knowledge') return ['知识管理', 'AI 知识库'];
   if (page === 'system-operation-logs') return ['系统', '操作日志'];
   if (page.startsWith('admin-')) {
-    const label = page === 'admin-general' ? '通用设置' : page === 'admin-permissions' ? '权限管理' : page === 'admin-channels' ? '渠道设置' : '通知设置';
+    const label = page === 'admin-general' ? '通用设置' : '权限管理';
     return ['系统', label];
   }
   if (aiConsoleLabel) return ['AI 配置', aiConsoleLabel];
@@ -262,10 +262,8 @@ export default function App() {
         );
       case 'admin-settings':
       case 'admin-general':
-      case 'admin-permissions':
-      case 'admin-channels':
-      case 'admin-notifications': {
-        const adminTab = app.currentPage === 'admin-general' ? 'general' : app.currentPage === 'admin-permissions' ? 'permissions' : app.currentPage === 'admin-channels' ? 'channels' : 'notifications';
+      case 'admin-permissions': {
+        const adminTab = app.currentPage === 'admin-general' ? 'general' : 'permissions';
         return (
           <Settings
             key={app.currentPage}

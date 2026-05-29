@@ -17,9 +17,7 @@ export type NavKey =
   | 'tasks'
   | 'admin-settings'
   | 'admin-general'
-  | 'admin-permissions'
-  | 'admin-channels'
-  | 'admin-notifications';
+  | 'admin-permissions';
 
 export type AIConsolePageKey =
   | 'rag-config'
