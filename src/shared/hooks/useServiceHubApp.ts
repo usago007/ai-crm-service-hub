@@ -23,6 +23,7 @@ import type {
   OverviewSnapshot,
   OverviewTodoItem,
   PagedResult,
+  PermissionBoundary,
   RagConfigSnapshot,
   RagRunFilters,
   AIConsolePageKey,
@@ -946,6 +947,12 @@ export function useServiceHubApp() {
       const error = await apiRef.current.getServiceHealthLastError(id);
       pushToast(error ? `${error.source}: ${error.message}` : '当前没有可查看的错误', error ? 'warning' : 'info');
       return error;
+    },
+    updateSettings(updater: (prev: ServiceHubSnapshot['settings']) => ServiceHubSnapshot['settings']) {
+      setSnapshot(prev => ({ ...prev, settings: updater(prev.settings) }));
+    },
+    updatePermissionBoundaries(updater: (prev: PermissionBoundary[]) => PermissionBoundary[]) {
+      setSnapshot(prev => ({ ...prev, permissionBoundaries: updater(prev.permissionBoundaries) }));
     },
     toggleCapability(id: string) {
       const nodeIdByCapability: Record<string, string> = {

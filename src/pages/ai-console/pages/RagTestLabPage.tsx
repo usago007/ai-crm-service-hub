@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '../../../components/common/Badge';
 import { Button } from '../../../components/common/Button';
+import { Modal } from '../../../components/common/Modal';
 import { Toggle } from '../../../components/common/Toggle';
 import { EmptyState } from '../../../components/common/PageChrome';
 import type { AIConsoleProps } from '../types';
@@ -248,35 +249,30 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
         <div className="mt-4 flex items-center gap-3 flex-wrap">
           <Button size="sm" onClick={handleRun}>{abMode ? '执行 AB 对比' : '运行调试'}</Button>
           <Button variant="secondary" size="sm" onClick={() => setTestForm({ customerQuestion: '', customerId: customers[0]?.id ?? '', scenario: 'Shipping', language: 'EN', relatedOrderId: '' })}>重置表单</Button>
-          <div className="relative">
-            <Button variant="secondary" size="sm" onClick={() => setShowPresets(prev => !prev)}>预设配置</Button>
-            {showPresets ? (
-              <>
-                <button type="button" aria-label="关闭预设面板" className="fixed inset-0 z-10 cursor-default" onClick={() => setShowPresets(false)} />
-                <div className="absolute left-0 top-[calc(100%+8px)] z-20 w-[300px] rounded-[18px] border border-[var(--color-border)] bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.14)]">
-                  <div className="flex items-center gap-2 mb-2">
-                    <input className={inputCls} value={presetName} onChange={e => setPresetName(e.target.value)} placeholder="预设名称" />
-                    <Button size="sm" variant="secondary" onClick={savePreset} disabled={!presetName.trim()}>保存</Button>
-                  </div>
-                  {presets.length > 0 ? (
-                    <div className="space-y-1.5 max-h-[180px] overflow-y-auto">
-                      {presets.map((preset, index) => (
-                        <div key={preset.name} className="flex items-center justify-between gap-2 rounded-[12px] bg-[var(--color-bg)] px-3 py-2">
-                          <button type="button" className="text-xs font-medium text-left flex-1" onClick={() => loadPreset(index)}>
-                            {preset.name}
-                            <div className="text-[11px] text-[var(--color-text-light)] mt-0.5">{preset.form.scenario} · {preset.form.language}</div>
-                          </button>
-                          <button type="button" className="text-[11px] text-[var(--color-text-light)] hover:text-[var(--color-danger)]" onClick={() => removePreset(index)}>删除</button>
-                        </div>
-                      ))}
+          <Button variant="secondary" size="sm" onClick={() => setShowPresets(true)}>预设配置</Button>
+          <Modal open={showPresets} onClose={() => setShowPresets(false)} title="预设配置" actions={null}>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <input className={inputCls} value={presetName} onChange={e => setPresetName(e.target.value)} placeholder="预设名称" autoFocus />
+                <Button size="sm" variant="secondary" onClick={savePreset} disabled={!presetName.trim()}>保存</Button>
+              </div>
+              {presets.length > 0 ? (
+                <div className="space-y-1.5 max-h-[260px] overflow-y-auto">
+                  {presets.map((preset, index) => (
+                    <div key={preset.name} className="flex items-center justify-between gap-2 rounded-[12px] border border-[var(--color-border-light)] bg-[var(--color-bg)] px-3 py-2">
+                      <button type="button" className="text-xs font-medium text-left flex-1 hover:text-[var(--color-primary)]" onClick={() => loadPreset(index)}>
+                        {preset.name}
+                        <div className="text-[11px] text-[var(--color-text-light)] mt-0.5">{preset.form.scenario} · {preset.form.language}</div>
+                      </button>
+                      <button type="button" className="text-[11px] text-[var(--color-text-light)] hover:text-[var(--color-danger)]" onClick={(e) => { e.stopPropagation(); removePreset(index); }}>删除</button>
                     </div>
-                  ) : (
-                    <div className="text-xs text-[var(--color-text-secondary)] py-2">还没有保存的预设，输入名称后点击保存。</div>
-                  )}
+                  ))}
                 </div>
-              </>
-            ) : null}
-          </div>
+              ) : (
+                <div className="text-xs text-[var(--color-text-secondary)] py-2">还没有保存的预设，输入名称后点击保存。</div>
+              )}
+            </div>
+          </Modal>
         </div>
       </SectionCard>
 

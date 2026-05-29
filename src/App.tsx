@@ -34,8 +34,7 @@ function getBreadcrumbPath(page: NavKey, t: ReturnType<typeof getTranslations>, 
 
 function getKnowledgeDetailLabel(tab: KnowledgeDetailTab) {
   if (tab === 'documents') return '文档';
-  if (tab === 'ingestion') return '接入任务';
-  if (tab === 'pipeline') return '流水线';
+  if (tab === 'ingestion') return '接入流水线';
   if (tab === 'retrieval-test') return '召回测试';
   return '设置';
 }
@@ -269,6 +268,8 @@ export default function App() {
             key={app.currentPage}
             lang={app.lang}
             onLanguageChange={app.setLang}
+            onUpdateSettings={app.updateSettings}
+            onUpdatePermissionBoundaries={app.updatePermissionBoundaries}
             settings={app.snapshot.settings}
             agents={app.snapshot.agents}
             permissionBoundaries={app.snapshot.permissionBoundaries}

@@ -133,7 +133,7 @@ export type IngestionStageStatus =
   | 'disabled';
 
 export type KnowledgeFlow = 'list' | 'detail' | 'wizard';
-export type KnowledgeDetailTab = 'documents' | 'ingestion' | 'pipeline' | 'retrieval-test' | 'settings';
+export type KnowledgeDetailTab = 'documents' | 'ingestion' | 'retrieval-test' | 'settings';
 export type ScenarioSettingsTab = 'scenario' | 'nodes';
 export type EvaluationCenterTab = 'evaluation' | 'audit';
 export type KnowledgeWizardStep = 1 | 2 | 3;

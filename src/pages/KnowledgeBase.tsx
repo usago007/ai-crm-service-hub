@@ -216,11 +216,6 @@ export function KnowledgeBase({
 
   const [showAllRetrievalRuns, setShowAllRetrievalRuns] = useState(false);
 
-  const pipelineJobs = useMemo(() => {
-    if (!selectedKnowledgeBase) return [];
-    return jobs.filter(job => selectedKnowledgeBase.documentIds.includes(job.documentId ?? '')).slice(0, 4);
-  }, [jobs, selectedKnowledgeBase]);
-
   const documentTags = useMemo(() => {
     if (!selectedKnowledgeBase) return [];
     return Array.from(new Set(
@@ -361,7 +356,7 @@ export function KnowledgeBase({
                     {renderKnowledgeIcon(base.icon)}
                     <div>
                       <div className="text-lg font-semibold leading-6">{base.name}</div>
-                      <div className="text-xs text-[var(--color-text-secondary)] mt-1">{base.owner} · 编辑于 {base.updatedAt}</div>
+                      <div className="text-xs text-[var(--color-text-secondary)] mt-1">{base.owner}</div>
                     </div>
                   </div>
                   <Badge variant={statusVariant(base.status)}>{statusLabel(base.status)}</Badge>
@@ -370,16 +365,11 @@ export function KnowledgeBase({
                 <div className="mt-4 flex gap-2 flex-wrap">
                   {base.tags.map(tag => <Badge key={tag} variant="gray">{tag}</Badge>)}
                 </div>
-                <div className="mt-6 flex items-center gap-4 text-[13px] text-[var(--color-text-secondary)]">
-                  <span>{base.documentCount} 个文档</span>
-                  <span>{base.tags.length} 个标签</span>
+                <div className="mt-6 flex items-center justify-between gap-3 text-[13px] text-[var(--color-text-secondary)] flex-wrap">
+                  <span>{base.documentCount} 个文档 · {base.tags.length} 个标签</span>
                   <span>{formatUpdatedAt(base.updatedAt)}</span>
                 </div>
               </button>
-              <div className="flex justify-end gap-2 mt-1">
-                <Button variant="ghost" size="sm" onClick={() => onArchiveKnowledgeBase(base.id)}>归档</Button>
-                <Button variant="ghost" size="sm" onClick={() => onCloneKnowledgeBase(base.id)}>克隆</Button>
-              </div>
             </div>
           ))}
         </div>
@@ -498,100 +488,29 @@ export function KnowledgeBase({
     if (!selectedKnowledgeBase) return null;
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="text-xl font-semibold">接入任务</div>
-          <Button size="sm" onClick={() => onStartKnowledgeImport(selectedKnowledgeBase.id)}>添加文件</Button>
-        </div>
         <div className="grid grid-cols-3 gap-3 max-[1100px]:grid-cols-1">
           <StatCard label="处理中" value={String(ingestionOverview.processingCount)} detail="" tone="warning" />
           <StatCard label="已发布" value={String(ingestionOverview.publishedCount)} detail="" tone="success" />
           <StatCard label="异常任务" value={String(ingestionOverview.exceptionCount)} detail="" tone="danger" />
         </div>
-        <div className="grid grid-cols-[0.95fr_1.05fr] gap-4 max-[1200px]:grid-cols-1">
-          <div className="rounded-[18px] border border-[var(--color-border)] bg-white p-4">
-            <div className="text-sm font-semibold mb-3">最近接入任务</div>
-            <div className="space-y-2">
-              {ingestionOverview.jobs.slice(0, 4).map(job => (
-                <div key={job.id} className="rounded-[16px] border border-[var(--color-border-light)] bg-[var(--color-bg)] p-3 text-xs">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <div className="font-medium">{job.documentName}</div>
-                    <Badge variant={stageVariant(job.status)}>{displayStageStatus(job.status)}</Badge>
-                  </div>
-                  <div className="text-[var(--color-text-secondary)]">{job.detail}</div>
-                </div>
-              ))}
-              {ingestionOverview.jobs.length === 0 ? <EmptyState title="暂无接入任务" compact /> : null}
-            </div>
-          </div>
-          <div className="rounded-[18px] border border-[var(--color-border)] bg-white p-4">
-            <div className="text-sm font-semibold mb-3">接入文档台账</div>
-            <div className="space-y-3">
-              {ingestionOverview.documents.slice(0, 10).map(doc => (
-                <div key={doc.id} className="rounded-[16px] border border-[var(--color-border-light)] bg-[var(--color-bg)] p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-medium">{doc.documentName}</div>
-                      <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{displayScenario(doc.scenario)} · {displayLanguage(doc.language)} · {doc.version}</div>
-                    </div>
-                    <Badge variant={stageVariant(doc.indexStatus)}>{displayStageStatus(doc.indexStatus)}</Badge>
-                  </div>
-                  <div className="mt-3 grid grid-cols-4 gap-2 text-xs max-[980px]:grid-cols-2">
-                    <div className="rounded-[12px] bg-white px-3 py-2">解析：{displayStageStatus(doc.parseStatus)}</div>
-                    <div className="rounded-[12px] bg-white px-3 py-2">切片：{displayStageStatus(doc.chunkStatus)}</div>
-                    <div className="rounded-[12px] bg-white px-3 py-2">向量：{displayStageStatus(doc.embeddingStatus)}</div>
-                    <div className="rounded-[12px] bg-white px-3 py-2">索引：{displayStageStatus(doc.indexStatus)}</div>
-                  </div>
-                  <div className="mt-3 flex gap-2 flex-wrap">
-                    <Button variant="ghost" size="sm" onClick={() => { void handleIngestionAction(doc.documentId, 'view_parsed_text'); }}>查看解析文本</Button>
-                    <Button variant="ghost" size="sm" onClick={() => { void handleIngestionAction(doc.documentId, 'view_chunks'); }}>查看分块</Button>
-                    <Button variant="ghost" size="sm" onClick={() => { setDocumentSearch(doc.documentName); onKnowledgeDetailTabChange('documents'); }}>查看文档</Button>
-                    <Button variant="ghost" size="sm" onClick={() => { void handleIngestionAction(doc.documentId, 'rebuild_embedding'); }}>重建向量</Button>
-                    <Button variant="ghost" size="sm" onClick={() => { void handleIngestionAction(doc.documentId, 'publish'); }}>发布</Button>
-                    <Button variant="ghost" size="sm" onClick={() => { void handleIngestionAction(doc.documentId, 'disable'); }}>禁用</Button>
-                  </div>
-                </div>
-              ))}
-              {ingestionOverview.documents.length === 0 ? <EmptyState title="当前知识库还没有接入文档" compact /> : null}
-              {ingestionOverview.documents.length > 10 ? (
-                <div className="text-xs text-[var(--color-text-secondary)] text-center mt-3 pt-2 border-t border-[var(--color-border-light)]">
-                  共 {ingestionOverview.documents.length} 条，显示前 10 条
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  function renderPipelineTab() {
-    const overrides = selectedKnowledgeBase?.configOverrides;
-    const effStrategy: RagConfigSnapshot['chunking']['strategy'] = (overrides?.chunking?.strategy as RagConfigSnapshot['chunking']['strategy'] | undefined) ?? ragConfig.chunking.strategy;
-    const effChunkSize = overrides?.chunking?.chunkSize ?? ragConfig.chunking.chunkSize;
-    const effOverlap = overrides?.chunking?.chunkOverlap ?? ragConfig.chunking.chunkOverlap;
-    const effTopK = overrides?.retrieval?.topK ?? ragConfig.retrieval.topK;
-    const effThreshold = overrides?.retrieval?.similarityThreshold ?? ragConfig.retrieval.similarityThreshold;
-    const effReranker = ragConfig.retrieval.rerankerEnabled;
-    const hasOverrides = overrides?.chunking || overrides?.retrieval;
-
-    return (
-      <div className="space-y-4">
-        <div>
-          <div className="text-xl font-semibold">流水线</div>
-          {hasOverrides ? <div className="text-xs text-[var(--color-warning)] mt-1">当前知识库已设置配置覆盖，以下为实际生效值。</div> : null}
-        </div>
         <div className="grid grid-cols-3 gap-3 max-[1100px]:grid-cols-1">
           <div className="rounded-[18px] border border-[var(--color-border)] bg-white p-4">
             <div className="text-xs text-[var(--color-text-secondary)] mb-1">当前分段策略</div>
-            <div className="text-lg font-semibold">{strategyLabel(effStrategy)}</div>
-            <div className="text-xs text-[var(--color-text-light)] mt-2">Chunk Size {effChunkSize} · Overlap {effOverlap}</div>
-            {overrides?.chunking ? <Badge variant="yellow" className="mt-2">KB 已覆盖</Badge> : null}
+            <div className="text-lg font-semibold">{strategyLabel(
+              (selectedKnowledgeBase.configOverrides?.chunking?.strategy as RagConfigSnapshot['chunking']['strategy'] | undefined) ?? ragConfig.chunking.strategy
+            )}</div>
+            <div className="text-xs text-[var(--color-text-light)] mt-2">
+              Chunk Size {selectedKnowledgeBase.configOverrides?.chunking?.chunkSize ?? ragConfig.chunking.chunkSize} · Overlap {selectedKnowledgeBase.configOverrides?.chunking?.chunkOverlap ?? ragConfig.chunking.chunkOverlap}
+            </div>
+            {selectedKnowledgeBase.configOverrides?.chunking ? <Badge variant="yellow" className="mt-2">KB 已覆盖</Badge> : null}
           </div>
           <div className="rounded-[18px] border border-[var(--color-border)] bg-white p-4">
             <div className="text-xs text-[var(--color-text-secondary)] mb-1">索引模式</div>
-            <div className="text-lg font-semibold">{effReranker ? '高质量检索' : '经济检索'}</div>
-            <div className="text-xs text-[var(--color-text-light)] mt-2">Top K {effTopK} · Score 阈值 {effThreshold}</div>
-            {overrides?.retrieval ? <Badge variant="yellow" className="mt-2">KB 已覆盖</Badge> : null}
+            <div className="text-lg font-semibold">{ragConfig.retrieval.rerankerEnabled ? '高质量检索' : '经济检索'}</div>
+            <div className="text-xs text-[var(--color-text-light)] mt-2">
+              Top K {selectedKnowledgeBase.configOverrides?.retrieval?.topK ?? ragConfig.retrieval.topK} · Score 阈值 {selectedKnowledgeBase.configOverrides?.retrieval?.similarityThreshold ?? ragConfig.retrieval.similarityThreshold}
+            </div>
+            {selectedKnowledgeBase.configOverrides?.retrieval ? <Badge variant="yellow" className="mt-2">KB 已覆盖</Badge> : null}
           </div>
           <div className="rounded-[18px] border border-[var(--color-border)] bg-white p-4">
             <div className="text-xs text-[var(--color-text-secondary)] mb-1">Embedding 模型</div>
@@ -599,19 +518,88 @@ export function KnowledgeBase({
             <div className="text-xs text-[var(--color-text-light)] mt-2">{ragConfig.embedding.indexName} · {ragConfig.embedding.indexVersion}</div>
           </div>
         </div>
-        <div className="grid gap-3">
-          {pipelineJobs.length > 0 ? pipelineJobs.map(job => (
-            <div key={job.id} className="rounded-[18px] border border-[var(--color-border)] bg-white p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="font-semibold">{job.documentName}</div>
-                <Badge variant={stageVariant(job.status)}>{displayStageStatus(job.status)}</Badge>
+
+        {(() => {
+          const merged = ingestionOverview.documents.map(doc => ({
+            doc,
+            job: ingestionOverview.jobs.find(j => j.documentId === doc.documentId),
+          }));
+          return (
+            <PanelCard title="文档处理记录" description="文档的接入状态、流水线阶段与操作，每行关联最近一次接入任务。" className="overflow-hidden">
+              <div className="overflow-auto">
+                <table className="w-full border-collapse min-w-[1200px] table-fixed">
+                  <colgroup>
+                    <col className="w-[240px]" />
+                    <col className="w-[72px]" />
+                    <col className="w-[64px]" />
+                    <col className="w-[60px]" />
+                    <col className="w-[96px]" />
+                    <col className="w-[60px]" />
+                    <col className="w-[60px]" />
+                    <col className="w-[60px]" />
+                    <col className="w-[60px]" />
+                    <col className="w-[150px]" />
+                    <col />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th className="text-left px-3 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">文档名称</th>
+                      <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">场景</th>
+                      <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">语言</th>
+                      <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">版本</th>
+                      <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">任务状态</th>
+                      <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">解析</th>
+                      <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">切片</th>
+                      <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">向量</th>
+                      <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">索引</th>
+                      <th className="text-left px-3 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">任务更新时间</th>
+                      <th className="text-left px-3 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {merged.map(({ doc, job }) => (
+                      <tr
+                        key={doc.id}
+                        className="border-b border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.42)]"
+                      >
+                        <td className="px-3 py-3 text-[13px] font-medium truncate" title={doc.documentName}>{doc.documentName}</td>
+                        <td className="px-2 py-3 text-xs text-[var(--color-text-secondary)]">{displayScenario(doc.scenario)}</td>
+                        <td className="px-2 py-3 text-xs text-[var(--color-text-secondary)]">{displayLanguage(doc.language)}</td>
+                        <td className="px-2 py-3 text-xs text-[var(--color-text-secondary)]">{doc.version}</td>
+                        <td className="px-2 py-3 text-xs">
+                          {job ? <Badge variant={stageVariant(job.status)} className="!text-[10px] !px-1.5 !py-0.5">{displayStageStatus(job.status)}</Badge> : <span className="text-[var(--color-text-light)]">—</span>}
+                        </td>
+                        <td className="px-2 py-3 text-xs"><Badge variant={stageVariant(doc.parseStatus)} className="!text-[10px] !px-1.5 !py-0.5">{displayStageStatus(doc.parseStatus)}</Badge></td>
+                        <td className="px-2 py-3 text-xs"><Badge variant={stageVariant(doc.chunkStatus)} className="!text-[10px] !px-1.5 !py-0.5">{displayStageStatus(doc.chunkStatus)}</Badge></td>
+                        <td className="px-2 py-3 text-xs"><Badge variant={stageVariant(doc.embeddingStatus)} className="!text-[10px] !px-1.5 !py-0.5">{displayStageStatus(doc.embeddingStatus)}</Badge></td>
+                        <td className="px-2 py-3 text-xs"><Badge variant={stageVariant(doc.indexStatus)} className="!text-[10px] !px-1.5 !py-0.5">{displayStageStatus(doc.indexStatus)}</Badge></td>
+                        <td className="px-3 py-3 text-xs text-[var(--color-text-secondary)] whitespace-nowrap">{job?.updatedAt ? job.updatedAt.replace('T', ' ').slice(0, 16) : '—'}</td>
+                        <td className="px-3 py-3 text-xs">
+                          <div className="flex items-center gap-1 flex-nowrap">
+                            <button type="button" className="text-[12px] text-[var(--color-primary)] hover:underline whitespace-nowrap" onClick={() => { void handleIngestionAction(doc.documentId, 'view_parsed_text'); }}>解析文本</button>
+                            <span className="text-[var(--color-text-light)]">·</span>
+                            <button type="button" className="text-[12px] text-[var(--color-primary)] hover:underline whitespace-nowrap" onClick={() => { void handleIngestionAction(doc.documentId, 'view_chunks'); }}>分块</button>
+                            <span className="text-[var(--color-text-light)]">·</span>
+                            <button type="button" className="text-[12px] text-[var(--color-primary)] hover:underline whitespace-nowrap" onClick={() => { setDocumentSearch(doc.documentName); onKnowledgeDetailTabChange('documents'); }}>文档</button>
+                            <span className="text-[var(--color-text-light)]">·</span>
+                            <button type="button" className="text-[12px] text-[var(--color-primary)] hover:underline whitespace-nowrap" onClick={() => { void handleIngestionAction(doc.documentId, 'rebuild_embedding'); }}>重建</button>
+                            <span className="text-[var(--color-text-light)]">·</span>
+                            <button type="button" className="text-[12px] text-[var(--color-primary)] hover:underline whitespace-nowrap" onClick={() => { void handleIngestionAction(doc.documentId, 'publish'); }}>发布</button>
+                            <span className="text-[var(--color-text-light)]">·</span>
+                            <button type="button" className="text-[12px] text-[var(--color-text-light)] hover:text-[var(--color-text-secondary)] hover:underline whitespace-nowrap" onClick={() => { void handleIngestionAction(doc.documentId, 'disable'); }}>禁用</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {merged.length === 0 ? (
+                  <div className="py-8"><EmptyState title="当前知识库还没有接入文档" compact /></div>
+                ) : null}
               </div>
-              <div className="text-xs text-[var(--color-text-secondary)] mt-2">{job.detail}</div>
-            </div>
-          )) : (
-            <EmptyState title="暂无接入轨迹" description="当前知识库还没有独立接入任务记录，后续新增文档后会在这里沉淀解析、切片、向量化与发布轨迹。" compact />
-          )}
-        </div>
+            </PanelCard>
+          );
+        })()}
       </div>
     );
   }
@@ -733,8 +721,13 @@ export function KnowledgeBase({
 
     return (
       <div className="space-y-4">
-        <div>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="text-xl font-semibold">设置</div>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={() => { setEditMetaName(selectedKnowledgeBase!.name); setEditMetaDesc(selectedKnowledgeBase!.description); setEditMetaTags(selectedKnowledgeBase!.tags.join(', ')); setEditMetaOwner(selectedKnowledgeBase!.owner); setEditMetaModalOpen(true); }}>编辑知识库信息</Button>
+            <Button variant="secondary" size="sm" onClick={() => onArchiveKnowledgeBase(selectedKnowledgeBase!.id)}>归档知识库</Button>
+            <Button variant="secondary" size="sm" onClick={() => onCloneKnowledgeBase(selectedKnowledgeBase!.id)}>克隆知识库</Button>
+          </div>
         </div>
 
         <div className="rounded-[20px] border border-[var(--color-border)] bg-white p-5 space-y-4">
@@ -814,8 +807,7 @@ export function KnowledgeBase({
     if (!selectedKnowledgeBase) return null;
     const tabs: Array<{ key: KnowledgeDetailTab; label: string }> = [
       { key: 'documents', label: '文档' },
-      { key: 'ingestion', label: '接入任务' },
-      { key: 'pipeline', label: '流水线' },
+      { key: 'ingestion', label: '接入流水线' },
       { key: 'retrieval-test', label: '召回测试' },
       { key: 'settings', label: '设置' },
     ];
@@ -827,24 +819,80 @@ export function KnowledgeBase({
 
     return (
       <div className="space-y-4">
-        <div className="rounded-[24px] border border-[var(--color-border)] bg-[linear-gradient(180deg,#FFFFFF_0%,#FAFBFC_100%)] p-6">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="min-w-0 flex items-center gap-3">
-              <Button variant="ghost" size="sm" onClick={onBackToKnowledgeList}>返回</Button>
-              <div>
-                <div className="text-[20px] font-semibold tracking-[-0.02em]">{selectedKnowledgeBase.name}</div>
-                <div className="text-sm text-[var(--color-text-secondary)] mt-1">{selectedKnowledgeBase.description}</div>
+        <div className="rounded-[22px] border border-[var(--color-border)] bg-white p-5">
+          <div className="flex items-start justify-between gap-6 flex-wrap">
+            <div className="min-w-0 flex items-start gap-3 flex-1">
+              <button
+                type="button"
+                onClick={onBackToKnowledgeList}
+                className="mt-0.5 flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-[10px] text-[var(--color-text-secondary)] hover:bg-[rgba(30,38,47,0.05)] hover:text-[var(--color-text)] transition-colors"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--color-text)] leading-tight">
+                    {selectedKnowledgeBase.name}
+                  </h1>
+                  <Badge variant={statusVariant(selectedKnowledgeBase.status)} className="text-xs px-2.5 py-0.5">
+                    {statusLabel(selectedKnowledgeBase.status)}
+                  </Badge>
+                </div>
+                {selectedKnowledgeBase.description && (
+                  <div className="text-sm text-[var(--color-text-secondary)] mt-1.5 leading-relaxed max-w-[640px]">
+                    {selectedKnowledgeBase.description}
+                  </div>
+                )}
+                {selectedKnowledgeBase.tags.length > 0 && (
+                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    {selectedKnowledgeBase.tags.map(tag => (
+                      <Badge key={tag} variant="gray" className="text-[12px] px-2.5 py-0.5 font-normal">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
-              <Button variant="ghost" size="sm" onClick={() => { setEditMetaName(selectedKnowledgeBase.name); setEditMetaDesc(selectedKnowledgeBase.description); setEditMetaTags(selectedKnowledgeBase.tags.join(', ')); setEditMetaOwner(selectedKnowledgeBase.owner); setEditMetaModalOpen(true); }}>编辑</Button>
             </div>
-            <div className="flex gap-2 flex-shrink-0">
-              <Button variant="secondary" size="sm" onClick={() => onArchiveKnowledgeBase(selectedKnowledgeBase.id)}>归档</Button>
+
+            <div className="flex items-center gap-3 text-xs text-[var(--color-text-secondary)] whitespace-nowrap flex-shrink-0 max-sm:items-start">
+              <span>
+                <span className="font-semibold text-[var(--color-text)]">{selectedKnowledgeBase.documentCount}</span>
+                <span className="ml-1">文档</span>
+              </span>
+              <span className="w-[3px] h-[3px] rounded-full bg-[var(--color-text-light)]" />
+              <span>
+                <span className="font-semibold text-[var(--color-text)]">{selectedKnowledgeBase.tags.length}</span>
+                <span className="ml-1">标签</span>
+              </span>
+              <span className="w-[3px] h-[3px] rounded-full bg-[var(--color-text-light)]" />
+              <span>
+                <span className="text-[var(--color-text-light)]">更新 </span>
+                <span className="font-medium text-[var(--color-text-secondary)]">{selectedKnowledgeBase.updatedAt}</span>
+              </span>
             </div>
           </div>
-          <div className="mt-3 flex items-center gap-2 flex-wrap">
-            {selectedKnowledgeBase.tags.map(tag => <Badge key={tag} variant="gray">{tag}</Badge>)}
-            <span className="text-xs text-[var(--color-text-light)]">· {selectedKnowledgeBase.owner} · {selectedKnowledgeBase.documentCount} 个文档 · 更新于 {selectedKnowledgeBase.updatedAt}</span>
-          </div>
+        </div>
+
+        <div className="border-b border-[var(--color-border-light)]">
+          <nav className="flex items-center gap-0 -mb-px ml-5">
+            {tabs.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => onKnowledgeDetailTabChange(tab.key)}
+                className={`relative px-1 py-3 mr-6 text-[14px] font-medium whitespace-nowrap transition-colors ${
+                  knowledgeDetailTab === tab.key
+                    ? 'text-[var(--color-text)]'
+                    : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
+                }`}
+              >
+                {tab.label}
+                {knowledgeDetailTab === tab.key && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[var(--color-primary)] rounded-full" />
+                )}
+              </button>
+            ))}
+          </nav>
         </div>
 
         <div className="grid grid-cols-4 gap-3 max-[1100px]:grid-cols-2">
@@ -854,26 +902,10 @@ export function KnowledgeBase({
           <StatCard label="覆盖缺口" value={String(gapDocs)} detail="过期、版本冲突或覆盖率偏低的文档。" tone={gapDocs > 0 ? 'danger' : 'success'} />
         </div>
 
-        <div className="grid grid-cols-[180px_1fr] gap-4 max-[1180px]:grid-cols-1">
-          <PanelCard className="rounded-[20px] p-3 h-fit">
-            {tabs.map(tab => (
-              <button
-                key={tab.key}
-                className={`w-full rounded-[14px] px-4 py-3 text-left text-sm transition-all duration-200 ${knowledgeDetailTab === tab.key ? 'bg-[rgba(179,92,32,0.12)] text-[var(--color-primary)] font-semibold shadow-[inset_0_0_0_1px_rgba(179,92,32,0.14)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'}`}
-                onClick={() => onKnowledgeDetailTabChange(tab.key)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </PanelCard>
-          <PanelCard className="rounded-[20px] p-6 bg-[linear-gradient(180deg,#FFFFFF_0%,#FBFCFF_100%)]">
-            {knowledgeDetailTab === 'documents' ? renderDocumentsTab() : null}
-            {knowledgeDetailTab === 'ingestion' ? renderIngestionTab() : null}
-            {knowledgeDetailTab === 'pipeline' ? renderPipelineTab() : null}
-            {knowledgeDetailTab === 'retrieval-test' ? renderRetrievalTab() : null}
-            {knowledgeDetailTab === 'settings' ? renderSettingsTab() : null}
-          </PanelCard>
-        </div>
+        {knowledgeDetailTab === 'documents' ? renderDocumentsTab() : null}
+        {knowledgeDetailTab === 'ingestion' ? renderIngestionTab() : null}
+        {knowledgeDetailTab === 'retrieval-test' ? renderRetrievalTab() : null}
+        {knowledgeDetailTab === 'settings' ? renderSettingsTab() : null}
         <Modal open={Boolean(ingestionModalState)} onClose={() => setIngestionModalState(null)} title={ingestionModalState?.title}>
           <div className="space-y-3 text-xs">
             {ingestionModalState?.lines.map((line, index) => (
