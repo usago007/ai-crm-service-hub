@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { Badge } from '../components/common/Badge';
+import type { BadgeVariant } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
 import { Modal } from '../components/common/Modal';
 import { EmptyState, FilterBar, PanelCard, StatCard } from '../components/common/PageChrome';
+import { Pagination } from '../components/common/Pagination';
 import type {
   IngestionDocumentRecord,
   KnowledgeBaseRecord,
@@ -88,6 +90,22 @@ function strategyLabel(value: RagConfigSnapshot['chunking']['strategy']) {
   return '固定 tokens';
 }
 
+function getOverallStatusLabel(
+  doc: IngestionDocumentRecord,
+  job?: { status: string } | null,
+): { label: string; variant: BadgeVariant } {
+  const statuses = [doc.parseStatus, doc.chunkStatus, doc.embeddingStatus, doc.indexStatus];
+  if (statuses.some(s => ['failed', 'chunk_failed', 'embedding_failed'].includes(s))) {
+    return { label: '失败', variant: 'danger' };
+  }
+  if (job?.status === 'version_conflict') return { label: '版本冲突', variant: 'orange' };
+  if (job?.status === 'published') return { label: '已发布', variant: 'success' };
+  if (job && ['uploaded', 'parsing', 'parsed', 'indexed', 'processing'].includes(job.status)) {
+    return { label: '处理中', variant: 'info' };
+  }
+  return { label: '待处理', variant: 'gray' };
+}
+
 function renderKnowledgeIcon(icon: string, className = '') {
   return (
     <div className={`flex h-12 w-12 items-center justify-center rounded-[14px] bg-[linear-gradient(180deg,#FFF3E7_0%,#FFE7D0_100%)] text-[13px] font-semibold tracking-[0.08em] text-[var(--color-primary)] ${className}`}>
@@ -132,6 +150,12 @@ export function KnowledgeBase({
   const [documentTag, setDocumentTag] = useState('all');
   const [documentSort, setDocumentSort] = useState<'latest' | 'name'>('latest');
   const [ingestionModalState, setIngestionModalState] = useState<{ title: string; lines: string[] } | null>(null);
+  const [openMore, setOpenMore] = useState<string | null>(null);
+  const [ingestionSearch, setIngestionSearch] = useState('');
+  const [ingestionStatusFilter, setIngestionStatusFilter] = useState('all');
+  const [ingestionScenarioFilter, setIngestionScenarioFilter] = useState('all');
+  const [ingestionLanguageFilter, setIngestionLanguageFilter] = useState('all');
+  const [ingestionPage, setIngestionPage] = useState(1);
   const [metadataModalOpen, setMetadataModalOpen] = useState(false);
   const [retrievalExpandedRunId, setRetrievalExpandedRunId] = useState<string | null>(null);
   const [kbSettingsOverrides, setKbSettingsOverrides] = useState(selectedKnowledgeBase?.configOverrides);
@@ -151,6 +175,18 @@ export function KnowledgeBase({
     setKbSettingsOverrides(selectedKnowledgeBase?.configOverrides);
     setKbSettingsDirty(false);
   }, [selectedKnowledgeBase?.id, selectedKnowledgeBase?.configOverrides]);
+
+  function resetIngestionFilters() {
+    setIngestionSearch('');
+    setIngestionStatusFilter('all');
+    setIngestionScenarioFilter('all');
+    setIngestionLanguageFilter('all');
+  }
+
+  function handleIngestionFilterChange(setter: (value: string) => void, value: string) {
+    setter(value);
+    setIngestionPage(1);
+  }
 
   const allTags = useMemo(
     () => Array.from(new Set(knowledgeBases.flatMap(item => item.tags))),
@@ -201,6 +237,53 @@ export function KnowledgeBase({
       exceptionCount: scopedJobs.filter(item => ['chunk_failed', 'embedding_failed', 'version_conflict', 'expired'].includes(item.status)).length,
     };
   }, [ingestionDocuments, jobs, selectedKnowledgeBase]);
+
+  const ingestionMerged = useMemo(() => {
+    return ingestionOverview.documents.map(doc => ({
+      doc,
+      job: ingestionOverview.jobs.find(j => j.documentId === doc.documentId),
+    }));
+  }, [ingestionOverview]);
+
+  const ingestionUniqueScenarios = useMemo(() => {
+    return Array.from(new Set(ingestionMerged.map(m => m.doc.scenario)));
+  }, [ingestionMerged]);
+
+  const ingestionUniqueLanguages = useMemo(() => {
+    return Array.from(new Set(ingestionMerged.map(m => m.doc.language)));
+  }, [ingestionMerged]);
+
+  const ingestionFilteredMerged = useMemo(() => {
+    let result = ingestionMerged;
+
+    if (ingestionSearch.trim()) {
+      const q = ingestionSearch.trim().toLowerCase();
+      result = result.filter(m => m.doc.documentName.toLowerCase().includes(q));
+    }
+
+    if (ingestionStatusFilter !== 'all') {
+      result = result.filter(m => getOverallStatusLabel(m.doc, m.job).label === ingestionStatusFilter);
+    }
+
+    if (ingestionScenarioFilter !== 'all') {
+      result = result.filter(m => m.doc.scenario === ingestionScenarioFilter);
+    }
+
+    if (ingestionLanguageFilter !== 'all') {
+      result = result.filter(m => m.doc.language === ingestionLanguageFilter);
+    }
+
+    return result;
+  }, [ingestionMerged, ingestionSearch, ingestionStatusFilter, ingestionScenarioFilter, ingestionLanguageFilter]);
+
+  const INGESTION_PAGE_SIZE = 10;
+
+  const ingestionTotalPages = Math.max(1, Math.ceil(ingestionFilteredMerged.length / INGESTION_PAGE_SIZE));
+  const ingestionSafePage = Math.min(ingestionPage, ingestionTotalPages);
+  const ingestionPaginatedMerged = ingestionFilteredMerged.slice(
+    (ingestionSafePage - 1) * INGESTION_PAGE_SIZE,
+    ingestionSafePage * INGESTION_PAGE_SIZE,
+  );
 
   const latestRetrievalRuns = useMemo(() => {
     if (!selectedKnowledgeBase) return [];
@@ -486,120 +569,218 @@ export function KnowledgeBase({
 
   function renderIngestionTab() {
     if (!selectedKnowledgeBase) return null;
+    const noData = ingestionMerged.length === 0;
+    const filteredEmpty = !noData && ingestionFilteredMerged.length === 0;
     return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-3 max-[1100px]:grid-cols-1">
-          <StatCard label="处理中" value={String(ingestionOverview.processingCount)} detail="" tone="warning" />
+      <div className="space-y-3">
+        <div className="grid grid-cols-4 gap-3 max-[1100px]:grid-cols-2">
+          <StatCard label="文档总量" value={String(selectedKnowledgeBase.documentCount)} detail="" />
           <StatCard label="已发布" value={String(ingestionOverview.publishedCount)} detail="" tone="success" />
+          <StatCard label="处理中" value={String(ingestionOverview.processingCount)} detail="" tone="warning" />
           <StatCard label="异常任务" value={String(ingestionOverview.exceptionCount)} detail="" tone="danger" />
         </div>
-        <div className="grid grid-cols-3 gap-3 max-[1100px]:grid-cols-1">
-          <div className="rounded-[18px] border border-[var(--color-border)] bg-white p-4">
-            <div className="text-xs text-[var(--color-text-secondary)] mb-1">当前分段策略</div>
-            <div className="text-lg font-semibold">{strategyLabel(
-              (selectedKnowledgeBase.configOverrides?.chunking?.strategy as RagConfigSnapshot['chunking']['strategy'] | undefined) ?? ragConfig.chunking.strategy
-            )}</div>
-            <div className="text-xs text-[var(--color-text-light)] mt-2">
-              Chunk Size {selectedKnowledgeBase.configOverrides?.chunking?.chunkSize ?? ragConfig.chunking.chunkSize} · Overlap {selectedKnowledgeBase.configOverrides?.chunking?.chunkOverlap ?? ragConfig.chunking.chunkOverlap}
-            </div>
-            {selectedKnowledgeBase.configOverrides?.chunking ? <Badge variant="yellow" className="mt-2">KB 已覆盖</Badge> : null}
-          </div>
-          <div className="rounded-[18px] border border-[var(--color-border)] bg-white p-4">
-            <div className="text-xs text-[var(--color-text-secondary)] mb-1">索引模式</div>
-            <div className="text-lg font-semibold">{ragConfig.retrieval.rerankerEnabled ? '高质量检索' : '经济检索'}</div>
-            <div className="text-xs text-[var(--color-text-light)] mt-2">
-              Top K {selectedKnowledgeBase.configOverrides?.retrieval?.topK ?? ragConfig.retrieval.topK} · Score 阈值 {selectedKnowledgeBase.configOverrides?.retrieval?.similarityThreshold ?? ragConfig.retrieval.similarityThreshold}
-            </div>
-            {selectedKnowledgeBase.configOverrides?.retrieval ? <Badge variant="yellow" className="mt-2">KB 已覆盖</Badge> : null}
-          </div>
-          <div className="rounded-[18px] border border-[var(--color-border)] bg-white p-4">
-            <div className="text-xs text-[var(--color-text-secondary)] mb-1">Embedding 模型</div>
-            <div className="text-lg font-semibold">{ragConfig.embedding.model}</div>
-            <div className="text-xs text-[var(--color-text-light)] mt-2">{ragConfig.embedding.indexName} · {ragConfig.embedding.indexVersion}</div>
-          </div>
+        <div className="flex items-center gap-6 flex-wrap text-xs text-[var(--color-text-secondary)] rounded-[18px] border border-[var(--color-border)] bg-white px-5 py-3">
+          <span>
+            <span className="text-[var(--color-text-light)]">分段策略：</span>
+            <span className="font-medium text-[var(--color-text)]">{strategyLabel((selectedKnowledgeBase.configOverrides?.chunking?.strategy as RagConfigSnapshot['chunking']['strategy'] | undefined) ?? ragConfig.chunking.strategy)}</span>
+            <span className="ml-1">· Chunk {selectedKnowledgeBase.configOverrides?.chunking?.chunkSize ?? ragConfig.chunking.chunkSize} / Overlap {selectedKnowledgeBase.configOverrides?.chunking?.chunkOverlap ?? ragConfig.chunking.chunkOverlap}</span>
+            {selectedKnowledgeBase.configOverrides?.chunking ? <Badge variant="yellow" className="ml-1.5 !text-[10px] !px-1.5 !py-0.5">已覆盖</Badge> : null}
+          </span>
+          <span className="w-px h-4 bg-[var(--color-border)]" />
+          <span>
+            <span className="text-[var(--color-text-light)]">索引模式：</span>
+            <span className="font-medium text-[var(--color-text)]">{ragConfig.retrieval.rerankerEnabled ? '高质量检索' : '经济检索'}</span>
+            <span className="ml-1">· Top K {selectedKnowledgeBase.configOverrides?.retrieval?.topK ?? ragConfig.retrieval.topK} / Score {selectedKnowledgeBase.configOverrides?.retrieval?.similarityThreshold ?? ragConfig.retrieval.similarityThreshold}</span>
+            {selectedKnowledgeBase.configOverrides?.retrieval ? <Badge variant="yellow" className="ml-1.5 !text-[10px] !px-1.5 !py-0.5">已覆盖</Badge> : null}
+          </span>
+          <span className="w-px h-4 bg-[var(--color-border)]" />
+          <span>
+            <span className="text-[var(--color-text-light)]">Embedding：</span>
+            <span className="font-medium text-[var(--color-text)]">{ragConfig.embedding.model}</span>
+            <span className="ml-1">· {ragConfig.embedding.indexName} · {ragConfig.embedding.indexVersion}</span>
+          </span>
         </div>
 
-        {(() => {
-          const merged = ingestionOverview.documents.map(doc => ({
-            doc,
-            job: ingestionOverview.jobs.find(j => j.documentId === doc.documentId),
-          }));
-          return (
-            <PanelCard title="文档处理记录" description="文档的接入状态、流水线阶段与操作，每行关联最近一次接入任务。" className="overflow-hidden">
+        <PanelCard title="文档处理记录" description="文档的接入状态、流水线阶段与操作，每行关联最近一次接入任务。" className="overflow-hidden">
+          <div className="mb-4">
+            <FilterBar>
+              <input
+                className={inputCls}
+                value={ingestionSearch}
+                onChange={e => handleIngestionFilterChange(setIngestionSearch, e.target.value)}
+                placeholder="搜索文档名称"
+              />
+              <select className={inputCls} value={ingestionStatusFilter} onChange={e => handleIngestionFilterChange(setIngestionStatusFilter, e.target.value)}>
+                <option value="all">全部状态</option>
+                <option value="已发布">已发布</option>
+                <option value="处理中">处理中</option>
+                <option value="失败">失败</option>
+                <option value="版本冲突">版本冲突</option>
+                <option value="待处理">待处理</option>
+              </select>
+              <select className={inputCls} value={ingestionScenarioFilter} onChange={e => handleIngestionFilterChange(setIngestionScenarioFilter, e.target.value)}>
+                <option value="all">全部场景</option>
+                {ingestionUniqueScenarios.map(s => (
+                  <option key={s} value={s}>{displayScenario(s)}</option>
+                ))}
+              </select>
+              <select className={inputCls} value={ingestionLanguageFilter} onChange={e => handleIngestionFilterChange(setIngestionLanguageFilter, e.target.value)}>
+                <option value="all">全部语言</option>
+                {ingestionUniqueLanguages.map(l => (
+                  <option key={l} value={l}>{displayLanguage(l)}</option>
+                ))}
+              </select>
+              <div className="filter-actions filter-span-full">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={resetIngestionFilters}>重置</Button>
+              </div>
+            </FilterBar>
+          </div>
+
+          {noData ? (
+            <div className="py-8"><EmptyState title="当前知识库还没有接入文档" compact /></div>
+          ) : filteredEmpty ? (
+            <div className="py-8"><EmptyState title="暂无匹配的文档处理记录" description="请调整搜索关键词或筛选条件" compact /></div>
+          ) : (
+            <>
               <div className="overflow-auto">
-                <table className="w-full border-collapse min-w-[1200px] table-fixed">
+                <table className="w-full border-collapse table-fixed">
                   <colgroup>
-                    <col className="w-[240px]" />
-                    <col className="w-[72px]" />
-                    <col className="w-[64px]" />
-                    <col className="w-[60px]" />
-                    <col className="w-[96px]" />
-                    <col className="w-[60px]" />
-                    <col className="w-[60px]" />
-                    <col className="w-[60px]" />
-                    <col className="w-[60px]" />
-                    <col className="w-[150px]" />
-                    <col />
+                    <col className="w-[30%]" />
+                    <col className="w-[8%]" />
+                    <col className="w-[28%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[8%]" />
                   </colgroup>
                   <thead>
                     <tr>
-                      <th className="text-left px-3 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">文档名称</th>
-                      <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">场景</th>
-                      <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">语言</th>
+                      <th className="text-left px-3 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">文档</th>
                       <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">版本</th>
-                      <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">任务状态</th>
-                      <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">解析</th>
-                      <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">切片</th>
-                      <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">向量</th>
-                      <th className="text-left px-2 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">索引</th>
-                      <th className="text-left px-3 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">任务更新时间</th>
+                      <th className="text-left px-3 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">处理进度</th>
+                      <th className="text-left px-3 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">当前状态</th>
+                      <th className="text-left px-3 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">更新时间</th>
                       <th className="text-left px-3 py-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--color-text-light)] border-b border-[var(--color-border)] whitespace-nowrap bg-[rgba(255,255,255,0.32)]">操作</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {merged.map(({ doc, job }) => (
+                    {ingestionPaginatedMerged.map(({ doc, job }) => {
+                      const stages = [
+                        { key: 'parse' as const, label: '解析', status: doc.parseStatus },
+                        { key: 'chunk' as const, label: '切片', status: doc.chunkStatus },
+                        { key: 'embed' as const, label: '向量', status: doc.embeddingStatus },
+                        { key: 'index' as const, label: '索引', status: doc.indexStatus },
+                      ];
+                      function stepTone(s: string) {
+                        if (['completed', 'published'].includes(s)) return 'done';
+                        if (['failed', 'chunk_failed', 'embedding_failed'].includes(s)) return 'fail';
+                        if (['processing', 'indexing', 'parsing', 'parsed', 'indexed', 'uploaded'].includes(s)) return 'active';
+                        return 'pending';
+                      }
+                      const os = getOverallStatusLabel(doc, job ?? null);
+                      function primaryAction(): { label: string; action: string } | null {
+                        if (os.label === '已发布') return { label: '查看解析', action: 'view_parsed_text' };
+                        if (os.label === '版本冲突') return { label: '查看解析', action: 'view_parsed_text' };
+                        if (os.label === '待处理') return { label: '发布', action: 'publish' };
+                        if (os.label === '失败') return { label: '重试', action: 'rebuild_embedding' };
+                        if (os.label === '处理中') return { label: '查看进度', action: 'view_parsed_text' };
+                        return null;
+                      }
+                      const pa = primaryAction();
+                      function moreActions(): Array<{ label: string; action: string; danger?: boolean }> {
+                        if (os.label === '已发布') return [{ label: '重建索引', action: 'rebuild_embedding' }, { label: '禁用', action: 'disable', danger: true }];
+                        if (os.label === '失败') return [{ label: '查看解析', action: 'view_parsed_text' }, { label: '查看分块', action: 'view_chunks' }, { label: '重建索引', action: 'rebuild_embedding' }, { label: '禁用', action: 'disable', danger: true }];
+                        if (os.label === '版本冲突') return [{ label: '查看解析', action: 'view_parsed_text' }, { label: '查看分块', action: 'view_chunks' }, { label: '重建索引', action: 'rebuild_embedding' }, { label: '禁用', action: 'disable', danger: true }];
+                        if (os.label === '处理中') return [{ label: '查看解析', action: 'view_parsed_text' }, { label: '查看分块', action: 'view_chunks' }];
+                        return [{ label: '查看解析', action: 'view_parsed_text' }, { label: '禁用', action: 'disable', danger: true }];
+                      }
+                      const more = moreActions();
+                      return (
                       <tr
                         key={doc.id}
                         className="border-b border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.42)]"
                       >
-                        <td className="px-3 py-3 text-[13px] font-medium truncate" title={doc.documentName}>{doc.documentName}</td>
-                        <td className="px-2 py-3 text-xs text-[var(--color-text-secondary)]">{displayScenario(doc.scenario)}</td>
-                        <td className="px-2 py-3 text-xs text-[var(--color-text-secondary)]">{displayLanguage(doc.language)}</td>
-                        <td className="px-2 py-3 text-xs text-[var(--color-text-secondary)]">{doc.version}</td>
-                        <td className="px-2 py-3 text-xs">
-                          {job ? <Badge variant={stageVariant(job.status)} className="!text-[10px] !px-1.5 !py-0.5">{displayStageStatus(job.status)}</Badge> : <span className="text-[var(--color-text-light)]">—</span>}
+                        <td className="px-3 py-3">
+                          <div className="text-[13px] font-medium truncate" title={doc.documentName}>{doc.documentName}</div>
+                          <div className="text-[11px] text-[var(--color-text-secondary)] mt-0.5">{displayScenario(doc.scenario)} · {displayLanguage(doc.language)}</div>
                         </td>
-                        <td className="px-2 py-3 text-xs"><Badge variant={stageVariant(doc.parseStatus)} className="!text-[10px] !px-1.5 !py-0.5">{displayStageStatus(doc.parseStatus)}</Badge></td>
-                        <td className="px-2 py-3 text-xs"><Badge variant={stageVariant(doc.chunkStatus)} className="!text-[10px] !px-1.5 !py-0.5">{displayStageStatus(doc.chunkStatus)}</Badge></td>
-                        <td className="px-2 py-3 text-xs"><Badge variant={stageVariant(doc.embeddingStatus)} className="!text-[10px] !px-1.5 !py-0.5">{displayStageStatus(doc.embeddingStatus)}</Badge></td>
-                        <td className="px-2 py-3 text-xs"><Badge variant={stageVariant(doc.indexStatus)} className="!text-[10px] !px-1.5 !py-0.5">{displayStageStatus(doc.indexStatus)}</Badge></td>
+                        <td className="px-2 py-3 text-xs text-[var(--color-text-secondary)]">{doc.version}</td>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-0.5 text-[11px]">
+                            {stages.map((st, i) => {
+                              const tone = stepTone(st.status);
+                              return (
+                                <span key={st.key} className="flex items-center gap-0.5">
+                                  {i > 0 && <span className="text-[var(--color-text-light)] mx-0.5">—</span>}
+                                  <span className={`inline-block w-[7px] h-[7px] rounded-full flex-shrink-0 ${
+                                    tone === 'done' ? 'bg-[var(--color-success)]' :
+                                    tone === 'fail' ? 'bg-[var(--color-danger)]' :
+                                    tone === 'active' ? 'bg-[var(--color-primary)]' :
+                                    'bg-[var(--color-border)]'
+                                  }`} />
+                                  <span className={`whitespace-nowrap ${
+                                    tone === 'fail' ? 'text-[var(--color-danger)] font-medium' :
+                                    tone === 'active' ? 'text-[var(--color-text)] font-medium' :
+                                    tone === 'done' ? 'text-[var(--color-text-secondary)]' :
+                                    'text-[var(--color-text-light)]'
+                                  }`}>{st.label}</span>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-xs">
+                          <Badge variant={os.variant} className="!text-[10px] !px-1.5 !py-0.5">{os.label}</Badge>
+                        </td>
                         <td className="px-3 py-3 text-xs text-[var(--color-text-secondary)] whitespace-nowrap">{job?.updatedAt ? job.updatedAt.replace('T', ' ').slice(0, 16) : '—'}</td>
                         <td className="px-3 py-3 text-xs">
-                          <div className="flex items-center gap-1 flex-nowrap">
-                            <button type="button" className="text-[12px] text-[var(--color-primary)] hover:underline whitespace-nowrap" onClick={() => { void handleIngestionAction(doc.documentId, 'view_parsed_text'); }}>解析文本</button>
-                            <span className="text-[var(--color-text-light)]">·</span>
-                            <button type="button" className="text-[12px] text-[var(--color-primary)] hover:underline whitespace-nowrap" onClick={() => { void handleIngestionAction(doc.documentId, 'view_chunks'); }}>分块</button>
-                            <span className="text-[var(--color-text-light)]">·</span>
-                            <button type="button" className="text-[12px] text-[var(--color-primary)] hover:underline whitespace-nowrap" onClick={() => { setDocumentSearch(doc.documentName); onKnowledgeDetailTabChange('documents'); }}>文档</button>
-                            <span className="text-[var(--color-text-light)]">·</span>
-                            <button type="button" className="text-[12px] text-[var(--color-primary)] hover:underline whitespace-nowrap" onClick={() => { void handleIngestionAction(doc.documentId, 'rebuild_embedding'); }}>重建</button>
-                            <span className="text-[var(--color-text-light)]">·</span>
-                            <button type="button" className="text-[12px] text-[var(--color-primary)] hover:underline whitespace-nowrap" onClick={() => { void handleIngestionAction(doc.documentId, 'publish'); }}>发布</button>
-                            <span className="text-[var(--color-text-light)]">·</span>
-                            <button type="button" className="text-[12px] text-[var(--color-text-light)] hover:text-[var(--color-text-secondary)] hover:underline whitespace-nowrap" onClick={() => { void handleIngestionAction(doc.documentId, 'disable'); }}>禁用</button>
+                          <div className="flex items-center gap-2 flex-nowrap">
+                            {pa && (
+                              <button type="button" className="text-[12px] font-medium text-[var(--color-primary)] hover:underline whitespace-nowrap" onClick={() => { void handleIngestionAction(doc.documentId, pa.action as 'view_parsed_text' | 'publish' | 'rebuild_embedding'); }}>
+                                {pa.label}
+                              </button>
+                            )}
+                            <div className="relative">
+                              <button
+                                type="button"
+                                className="text-[14px] text-[var(--color-text-light)] hover:text-[var(--color-text)] px-1 leading-none"
+                                onClick={(e) => { e.stopPropagation(); setOpenMore(openMore === doc.id ? null : doc.id); }}
+                              >···</button>
+                              {openMore === doc.id && (
+                                <>
+                                  <div className="fixed inset-0 z-10" onClick={() => setOpenMore(null)} />
+                                  <div className="absolute right-0 top-full mt-1 bg-white border border-[var(--color-border)] rounded-xl shadow-[0_12px_32px_rgba(0,0,0,0.12)] z-20 py-1 min-w-[108px]">
+                                    {more.map(item => (
+                                      <button
+                                        key={item.action}
+                                        type="button"
+                                        className={`w-full text-left px-3 py-1.5 text-[12px] whitespace-nowrap hover:bg-[var(--color-bg)] ${item.danger ? 'text-[var(--color-danger)]' : 'text-[var(--color-text-secondary)]'}`}
+                                        onClick={() => { void handleIngestionAction(doc.documentId, item.action as 'view_parsed_text' | 'view_chunks' | 'rebuild_embedding' | 'disable'); setOpenMore(null); }}
+                                      >{item.label}</button>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
-                {merged.length === 0 ? (
-                  <div className="py-8"><EmptyState title="当前知识库还没有接入文档" compact /></div>
-                ) : null}
               </div>
-            </PanelCard>
-          );
-        })()}
+              <Pagination
+                page={ingestionSafePage}
+                totalPages={ingestionTotalPages}
+                total={ingestionFilteredMerged.length}
+                onPageChange={setIngestionPage}
+              />
+            </>
+          )}
+        </PanelCard>
       </div>
     );
   }
@@ -812,10 +993,7 @@ export function KnowledgeBase({
       { key: 'settings', label: '设置' },
     ];
 
-    const kbDocs = knowledgeDocuments.filter(d => selectedKnowledgeBase.documentIds.includes(d.id));
-    const kbScenarios = Array.from(new Set(kbDocs.map(d => d.scenario)));
-    const healthyDocs = kbDocs.filter(d => d.publishStatus === 'published' && d.coverageScore >= 80).length;
-    const gapDocs = kbDocs.filter(d => ['expired', 'version_conflict', 'chunk_failed', 'embedding_failed'].includes(d.publishStatus) || d.coverageScore < 70).length;
+
 
     return (
       <div className="space-y-4">
@@ -893,13 +1071,6 @@ export function KnowledgeBase({
               </button>
             ))}
           </nav>
-        </div>
-
-        <div className="grid grid-cols-4 gap-3 max-[1100px]:grid-cols-2">
-          <StatCard label="文档总量" value={String(selectedKnowledgeBase.documentCount)} detail="当前知识库下的全部文档。" />
-          <StatCard label="健康文档" value={String(healthyDocs)} detail="已发布且覆盖率 ≥ 80%。" tone={healthyDocs > 0 ? 'success' : 'warning'} />
-          <StatCard label="覆盖场景" value={String(kbScenarios.length)} detail={`覆盖 ${kbScenarios.map(s => displayScenario(s)).slice(0, 3).join('、')}等业务场景。`} />
-          <StatCard label="覆盖缺口" value={String(gapDocs)} detail="过期、版本冲突或覆盖率偏低的文档。" tone={gapDocs > 0 ? 'danger' : 'success'} />
         </div>
 
         {knowledgeDetailTab === 'documents' ? renderDocumentsTab() : null}

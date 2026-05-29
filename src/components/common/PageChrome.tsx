@@ -111,7 +111,7 @@ export function DetailPanel({ title, description, children, actions, className =
   );
 }
 
-export function EmptyState({ title, action, compact = false }: EmptyStateProps) {
+export function EmptyState({ title, description, action, compact = false }: EmptyStateProps) {
   return (
     <div
       className={`rounded-[22px] border border-dashed border-[var(--color-border-strong)] bg-[rgba(255,255,255,0.45)] text-center ${
@@ -119,6 +119,9 @@ export function EmptyState({ title, action, compact = false }: EmptyStateProps) 
       }`}
     >
       <div className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--color-text)]">{title}</div>
+      {description ? (
+        <div className="mt-2 text-[13px] text-[var(--color-text-secondary)]">{description}</div>
+      ) : null}
       {action ? <div className="mt-4 flex justify-center">{action}</div> : null}
     </div>
   );
