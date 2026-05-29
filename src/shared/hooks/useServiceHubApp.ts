@@ -412,7 +412,7 @@ export function useServiceHubApp() {
       { id: 'shortcut-orders', label: '订单管理', description: '聚合支付、履约、物流与异常订单排查。', countLabel: `${orderExceptions} 个异常订单`, tone: 'yellow', target: { page: 'orders' } },
       { id: 'shortcut-knowledge', label: '知识库', description: '检查当前知识资产、接入任务与覆盖情况。', countLabel: `${snapshot.knowledgeDocuments.length} 份知识`, tone: 'blue', target: { page: 'knowledge' } },
       { id: 'shortcut-rag', label: 'RAG 调试台', description: '围绕真实案例调试检索、Prompt 和护栏。', countLabel: `${ragExceptions.length} 个待排查`, tone: 'yellow', target: { page: 'ai-console-rag-test-lab' } },
-      { id: 'shortcut-audit', label: '评测与反馈', description: '追踪拦截、人工改判、知识异常与执行留痕。', countLabel: `${blockedAuditLogs.length} 个阻止事件`, tone: 'red', target: { page: 'ai-console-evaluation-feedback' } },
+      { id: 'shortcut-audit', label: 'AI 质量监控', description: '追踪拦截、人工改判、知识异常与执行留痕。', countLabel: `${blockedAuditLogs.length} 个阻止事件`, tone: 'red', target: { page: 'ai-console-evaluation-feedback' } },
     ];
 
     return {

@@ -94,7 +94,7 @@ export const AI_CONSOLE_PAGES: Array<{ key: AIConsolePageKey; navKey: NavKey; la
   { key: 'rag-config', navKey: 'ai-console-rag-config', label: '全局 RAG 配置', description: '维护环境级默认解析、切片、检索与 Prompt 组装参数' },
   { key: 'scenario-policy', navKey: 'ai-console-scenario-policy', label: 'AI 场景策略', description: '按业务场景统一管理模型、复核、发送权限与回退策略' },
   { key: 'rag-test-lab', navKey: 'ai-console-rag-test-lab', label: 'RAG 调试台', description: '问题输入、检索结果、Prompt 预览与护栏结果' },
-  { key: 'evaluation-feedback', navKey: 'ai-console-evaluation-feedback', label: '评测与反馈', description: '评测指标、反馈闭环与优化规则' },
+  { key: 'evaluation-feedback', navKey: 'ai-console-evaluation-feedback', label: 'AI 质量监控', description: '监控 AI 客服回复质量，追踪风险事件与优化闭环' },
   { key: 'service-health', navKey: 'ai-console-service-health', label: '运行状态', description: '定位模型、向量库、连接器与文档接入链路异常' },
 ];
 
@@ -109,7 +109,7 @@ export function getAIConsolePageFromNav(page: NavKey): AIConsolePageKey | null {
 
 export function getAIConsoleLabelFromNav(page: NavKey): string | null {
   if (page === 'ai-console-capability-nodes') return 'AI 场景策略';
-  if (page === 'ai-console-audit-logs') return '评测与反馈';
+  if (page === 'ai-console-audit-logs') return 'AI 质量监控';
   if (page === 'ai-console-service-health') return '运行状态';
   return AI_CONSOLE_PAGES.find(item => item.navKey === page)?.label ?? null;
 }

@@ -365,7 +365,7 @@ export const zh: typeof en = {
     autoDetect: '自动检测',
   },
   brand: {
-    tagline: '客服服务平台',
+    tagline: 'AI CRM Service Hub',
   },
   filters: {
     all: '全部',

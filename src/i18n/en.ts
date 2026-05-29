@@ -363,7 +363,7 @@ export const en = {
     autoDetect: 'Auto-detect',
   },
   brand: {
-    tagline: 'Customer Service Platform',
+    tagline: 'AI CRM Service Hub',
   },
   filters: {
     all: 'All',

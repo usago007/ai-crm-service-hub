@@ -51,7 +51,7 @@ export function Sidebar({ collapsed, currentPage, tickets, tasks, onNavigate, on
     {
       label: '质量监控',
       items: [
-        { key: 'ai-console-evaluation-feedback' as NavKey, label: '评测与反馈', icon: BarChart3, count: undefined },
+        { key: 'ai-console-evaluation-feedback' as NavKey, label: 'AI 质量监控', icon: BarChart3, count: undefined },
         { key: 'ai-console-service-health' as NavKey, label: '运行状态', icon: Cpu, count: undefined },
       ],
     },
@@ -71,9 +71,9 @@ export function Sidebar({ collapsed, currentPage, tickets, tasks, onNavigate, on
       aria-label="主导航"
     >
       <div className={`h-[78px] flex items-center ${collapsed ? 'justify-center px-3' : 'px-5'} gap-3 border-b border-[rgba(255,255,255,0.06)] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0))]`}>
-        <div className="w-10 h-10 bg-gradient-to-br from-[var(--color-primary)] via-[#4b8dff] to-[var(--color-accent)] rounded-[14px] flex items-center justify-center text-sm font-bold text-white flex-shrink-0 shadow-[0_16px_32px_-18px_rgba(21,94,239,0.9)]">AI</div>
+        <div className="w-8 h-8 bg-[#1e3a5f] rounded-[10px] flex items-center justify-center text-[13px] font-bold text-white flex-shrink-0">AI</div>
         <div className={`${collapsed ? 'hidden' : 'flex'} min-w-0 items-center`}>
-          <div className="text-white text-[15px] font-semibold whitespace-nowrap">AI 客服协作台</div>
+          <div className="text-white text-[15px] font-semibold whitespace-nowrap">AI CRM Service Hub</div>
         </div>
       </div>
 
@@ -130,11 +130,11 @@ export function Sidebar({ collapsed, currentPage, tickets, tasks, onNavigate, on
           type="button"
           title={collapsed ? '展开导航' : '收起导航'}
           aria-label={collapsed ? '展开导航' : '收起导航'}
-          className={`w-full flex items-center ${collapsed ? 'justify-center px-0' : 'gap-2.5 px-3.5'} py-3 rounded-[18px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.74)] transition-all duration-[var(--transition)] hover:bg-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.12)] hover:text-white`}
+          className={`w-full flex items-center ${collapsed ? 'justify-center px-0' : 'gap-2.5 px-3.5'} py-2.5 rounded-[12px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.74)] transition-all duration-[var(--transition)] hover:bg-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.12)] hover:text-white`}
           onClick={onToggleCollapsed}
         >
-          {collapsed ? <PanelLeftOpen size={18} className="flex-shrink-0" /> : <PanelLeftClose size={18} className="flex-shrink-0" />}
-          {!collapsed ? <span>收起导航</span> : null}
+          {collapsed ? <PanelLeftOpen size={16} className="flex-shrink-0" /> : <PanelLeftClose size={16} className="flex-shrink-0" />}
+          {!collapsed ? <span className="text-[13px]">收起导航</span> : null}
         </button>
       </div>
     </aside>

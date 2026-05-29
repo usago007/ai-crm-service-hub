@@ -26,7 +26,7 @@ export function Topbar({ path, onOpenAdmin }: TopbarProps) {
             className="flex items-center gap-1.5 px-2 py-1 rounded-[12px] bg-[rgba(21,32,50,0.03)] border border-transparent transition-colors hover:bg-[rgba(21,32,50,0.06)]"
             onClick={onOpenAdmin}
           >
-            <div className="w-6 h-6 rounded-[8px] bg-[linear-gradient(135deg,#155eef_0%,#0f766e_100%)] flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0">管</div>
+            <div className="w-6 h-6 rounded-[8px] bg-[rgba(100,116,139,0.2)] flex items-center justify-center text-[var(--color-text)] text-[10px] font-semibold flex-shrink-0">管</div>
             <span className="text-[11px] font-medium text-[var(--color-text-secondary)] whitespace-nowrap">超级管理员</span>
           </button>
         </div>
