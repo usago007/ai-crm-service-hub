@@ -48,7 +48,7 @@ export function AIOperations({
 
   const activeDocumentCount = documents.filter(item => item.publishStatus === 'published').length;
   const failedJobCount = jobs.filter(item => ['chunk_failed', 'embedding_failed', 'version_conflict', 'expired'].includes(item.status)).length;
-  const riskEvalCount = evaluations.filter(item => item.status === 'risk').length;
+  const riskEvalCount = evaluations.filter(item => item.conclusion === 'high_risk').length;
 
   return (
     <div className="space-y-4">
@@ -294,10 +294,10 @@ export function AIOperations({
                   <td className="px-4 py-3 text-[13px] border-b border-[var(--color-border-light)]">{item.scenario}</td>
                   <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{item.metric}</td>
                   <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{item.score}</td>
-                  <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">{item.baseline}</td>
+                  <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">--</td>
                   <td className="px-4 py-3 text-xs border-b border-[var(--color-border-light)]">
-                    <Badge variant={item.status === 'good' ? 'green' : item.status === 'watch' ? 'yellow' : 'red'}>
-                      {item.status}
+                    <Badge variant={item.conclusion === 'pass' ? 'green' : item.conclusion === 'optimize' ? 'yellow' : 'red'}>
+                      {item.conclusion}
                     </Badge>
                   </td>
                 </tr>

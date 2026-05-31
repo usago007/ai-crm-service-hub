@@ -27,6 +27,7 @@ import type {
   ServiceHealthSnapshot,
   ServiceTicket,
   FollowUpTask,
+  KnowledgeBaseRecord,
   KnowledgeDocument,
   NavKey,
   EvaluationCenterTab,
@@ -56,6 +57,7 @@ export interface AIConsoleProps {
   ingestionDocuments: IngestionDocumentRecord[];
   ragConfig: RagConfigSnapshot;
   ragTestRuns: RagTestRun[];
+  knowledgeBases: KnowledgeBaseRecord[];
   scenarioModelConfigs: ScenarioModelConfig[];
   pipelineNodeConfigs: PipelineNodeModelConfig[];
   effectiveScenarioPolicies: EffectiveScenarioPolicy[];

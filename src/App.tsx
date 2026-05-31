@@ -211,6 +211,7 @@ export default function App() {
             ingestionDocuments={app.aiConsole.ingestionDocuments}
             ragConfig={app.aiConsole.ragConfig}
             ragTestRuns={app.aiConsole.ragTestRuns}
+            knowledgeBases={app.knowledgeBases}
             scenarioModelConfigs={app.aiConsole.scenarioModelConfigs}
             pipelineNodeConfigs={app.aiConsole.pipelineNodeConfigs}
             effectiveScenarioPolicies={app.aiConsole.effectiveScenarioPolicies}

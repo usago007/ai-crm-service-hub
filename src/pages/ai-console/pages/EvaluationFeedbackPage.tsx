@@ -121,7 +121,7 @@ export function EvaluationFeedbackPage({
       const avgScore = total > 0 ? g.evals.reduce((sum, e) => sum + parseFloat(e.score), 0) / total : 0;
       const highRiskCount = g.evals.filter(e => e.conclusion === 'high_risk').length;
       const optimizeCount = g.evals.filter(e => e.conclusion === 'optimize').length;
-      const worstConclusion = highRiskCount > 0 ? 'high_risk' : optimizeCount > 0 ? 'optimize' : 'pass';
+      const worstConclusion: EvaluationRecord['conclusion'] = highRiskCount > 0 ? 'high_risk' : optimizeCount > 0 ? 'optimize' : 'pass';
       const topMetric = g.evals.reduce((acc, e) => { acc[e.metric] = (acc[e.metric] || 0) + 1; return acc; }, {} as Record<string, number>);
       const mainIssue = Object.entries(topMetric).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '--';
       return { scenario, mainIssue, sampleCount: total, avgScore, worstConclusion, fbCount: g.fbCount };
@@ -235,7 +235,7 @@ export function EvaluationFeedbackPage({
           </SectionCard>
 
           {businessCase.ticket ? (
-            <SectionCard title="示例工单" description="以下工单用于演示质量问题如何从评测结果回溯到客服处理现场。">
+            <SectionCard title="示例工单">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-4 text-xs text-[var(--color-text-secondary)] flex-wrap">
                   <span><strong>工单：</strong> {businessCase.ticket.id}</span>

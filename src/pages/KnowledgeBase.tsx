@@ -34,7 +34,7 @@ interface KnowledgeBaseProps {
   ingestionDocuments: IngestionDocumentRecord[];
   ragConfig: RagConfigSnapshot;
   ragTestRuns: RagTestRun[];
-  jobs: Array<{ id: string; documentId?: string; documentName: string; status: string; detail: string }>;
+  jobs: Array<{ id: string; documentId?: string; documentName: string; status: string; detail: string; updatedAt?: string }>;
   onIngestionAction: (documentId: string, action: 'view_parsed_text' | 'view_chunks' | 'rebuild_embedding' | 'publish' | 'disable') => Promise<{ parsedText?: string; chunks?: string[]; message: string }>;
   onCreateKnowledgeBase: (name: string, description?: string, tags?: string[]) => void;
   onUpdateKnowledgeBaseMeta: (id: string, updates: { name?: string; description?: string; tags?: string[]; owner?: string }) => void;
@@ -450,7 +450,7 @@ export function KnowledgeBase({
                   {base.tags.map(tag => <Badge key={tag} variant="gray">{tag}</Badge>)}
                 </div>
                 <div className="mt-6 flex items-center justify-between gap-3 text-[13px] text-[var(--color-text-secondary)] flex-wrap">
-                  <span>{base.documentCount} 个文档 · {base.tags.length} 个标签</span>
+                  <span>{base.documentCount} 个文档 · {base.collections.length} 个集合 · {base.referencedByScenarioIds.length} 个策略引用</span>
                   <span>{formatUpdatedAt(base.updatedAt)}</span>
                 </div>
               </button>
@@ -576,8 +576,8 @@ export function KnowledgeBase({
       <div className="space-y-3">
         <div className="grid grid-cols-4 gap-3 max-[1100px]:grid-cols-2">
           <StatCard label="文档总量" value={String(selectedKnowledgeBase.documentCount)} detail="" />
-          <StatCard label="已发布" value={String(ingestionOverview.publishedCount)} detail="" tone="success" />
-          <StatCard label="处理中" value={String(ingestionOverview.processingCount)} detail="" tone="warning" />
+          <StatCard label="知识集合" value={String(selectedKnowledgeBase.collections.length)} detail="" tone="success" />
+          <StatCard label="策略引用" value={String(selectedKnowledgeBase.referencedByScenarioIds.length)} detail={`${selectedKnowledgeBase.referenceStats.activeCount} active / ${selectedKnowledgeBase.referenceStats.draftCount} draft`} tone="warning" />
           <StatCard label="异常任务" value={String(ingestionOverview.exceptionCount)} detail="" tone="danger" />
         </div>
         <div className="flex items-center gap-6 flex-wrap text-xs text-[var(--color-text-secondary)] rounded-[18px] border border-[var(--color-border)] bg-white px-5 py-3">
@@ -1043,6 +1043,16 @@ export function KnowledgeBase({
               <span>
                 <span className="font-semibold text-[var(--color-text)]">{selectedKnowledgeBase.tags.length}</span>
                 <span className="ml-1">标签</span>
+              </span>
+              <span className="w-[3px] h-[3px] rounded-full bg-[var(--color-text-light)]" />
+              <span>
+                <span className="font-semibold text-[var(--color-text)]">{selectedKnowledgeBase.collections.length}</span>
+                <span className="ml-1">集合</span>
+              </span>
+              <span className="w-[3px] h-[3px] rounded-full bg-[var(--color-text-light)]" />
+              <span>
+                <span className="font-semibold text-[var(--color-text)]">{selectedKnowledgeBase.referencedByScenarioIds.length}</span>
+                <span className="ml-1">策略引用</span>
               </span>
               <span className="w-[3px] h-[3px] rounded-full bg-[var(--color-text-light)]" />
               <span>

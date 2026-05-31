@@ -136,7 +136,9 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
         status: run.guardrailCheck.result === 'passed' ? 'good' : 'watch',
       });
       sessionStorage.setItem('saved-evaluations', JSON.stringify(existing));
-    } catch {}
+    } catch (error) {
+      console.warn('保存评估集失败', error);
+    }
   }
 
   function copyPrompt(run: RagTestRun) {
@@ -158,7 +160,11 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
     setChunkFeedback(prev => {
       const cur = prev[chunkId];
       if (cur === 'helpful') return { ...prev, [chunkId]: 'not_helpful' };
-      if (cur === 'not_helpful') { const { [chunkId]: _, ...rest } = prev; return rest; }
+      if (cur === 'not_helpful') {
+        const rest = { ...prev };
+        delete rest[chunkId];
+        return rest;
+      }
       return { ...prev, [chunkId]: 'helpful' };
     });
   }
@@ -281,13 +287,13 @@ export function RagTestLabPage({ businessCase, customers, orders, ragTestRuns, e
           <SectionCard title="策略来源">
             <div className="grid grid-cols-3 gap-3 max-[1000px]:grid-cols-1 text-xs">
               <InfoCard label="当前场景策略" value={`${displayScenario(activeScenarioPolicy.scenario)} / ${activeScenarioPolicy.strategyName}`} />
+              <InfoCard label="知识范围" value={activeScenarioPolicy.knowledgeSummary} />
               <InfoCard label="检索口径" value={activeScenarioPolicy.retrievalSummary} />
-              <InfoCard label="人工边界" value={activeScenarioPolicy.manualReviewRequired ? '必须人工复核' : activeScenarioPolicy.humanSendAllowed ? '人工可发送' : '仅保留建议'} />
             </div>
             <div className="mt-3 flex gap-2 flex-wrap text-xs">
               {activeNodePolicies.map(item => (
-                <Badge key={item.nodeId} variant={item.effectiveSource === 'scenario' ? 'blue' : 'yellow'}>
-                  {item.name} · {item.effectiveSource === 'scenario' ? '继承场景' : '节点覆盖'}
+                <Badge key={item.nodeId} variant="blue">
+                  {item.name} · 节点默认
                 </Badge>
               ))}
             </div>

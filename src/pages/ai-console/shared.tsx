@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { DataTable } from '../../components/common/DataTable';
-import { PanelCard, PageHeader as BasePageHeader, StatCard as BaseStatCard } from '../../components/common/PageChrome';
+import { PanelCard, StatCard as BaseStatCard } from '../../components/common/PageChrome';
 import type { NavKey } from '../../types';
 import type { AIConsoleBusinessCase } from './types';
 import {

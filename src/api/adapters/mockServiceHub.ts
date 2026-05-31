@@ -52,6 +52,7 @@ import {
   buildEffectiveNodePolicies,
   buildEffectiveScenarioPolicies,
   buildGuardrailDecision,
+  getMissingRequiredNodeIds,
   findNodeConfig,
   findScenarioConfig as resolveScenarioConfig,
 } from '../../shared/lib/aiConsolePolicy';
@@ -331,11 +332,56 @@ function createGuardrailCheck(snapshot: ServiceHubSnapshot, scenario: string, ci
   return buildGuardrailDecision(scenario, citationCount, snapshot.scenarioModelConfigs, snapshot.pipelineNodeConfigs);
 }
 
+function scenarioFromKnowledgeCollectionId(collectionId: string) {
+  const map: Record<string, { scenario: string; name: string }> = {
+    'KBC-OPS-LOGISTICS': { scenario: 'Shipping', name: '物流知识集合' },
+    'KBC-OPS-DELIVERY-SLA': { scenario: 'Shipping', name: '配送时效知识集合' },
+    'KBC-OPS-ORDER-TRACKING': { scenario: 'Shipping', name: '订单追踪知识集合' },
+    'KBC-AFTERSALES-REFUND': { scenario: 'Refund', name: '退款知识集合' },
+    'KBC-AFTERSALES-RETURN': { scenario: 'Refund', name: '退货知识集合' },
+    'KBC-AFTERSALES-PAYMENT-COMPENSATION': { scenario: 'Payment', name: '支付与赔付知识集合' },
+    'KBC-ESC-COMPLAINT': { scenario: 'Complaint', name: '投诉处理知识集合' },
+    'KBC-ESC-ESCALATION': { scenario: 'Complaint', name: '升级规范知识集合' },
+    'KBC-ESC-HIGH-RISK-SCRIPT': { scenario: 'Complaint', name: '高风险话术知识集合' },
+    'KBC-PROD-FAQ': { scenario: 'Product Inquiry', name: '商品 FAQ 知识集合' },
+    'KBC-PROD-SERVICE-POLICY': { scenario: 'Product Inquiry', name: '服务政策知识集合' },
+  };
+  return map[collectionId]?.scenario;
+}
+
+function knowledgeCollectionName(collectionId: string) {
+  const names: Record<string, string> = {
+    'KBC-OPS-LOGISTICS': '物流知识集合',
+    'KBC-OPS-DELIVERY-SLA': '配送时效知识集合',
+    'KBC-OPS-ORDER-TRACKING': '订单追踪知识集合',
+    'KBC-AFTERSALES-REFUND': '退款知识集合',
+    'KBC-AFTERSALES-RETURN': '退货知识集合',
+    'KBC-AFTERSALES-PAYMENT-COMPENSATION': '支付与赔付知识集合',
+    'KBC-ESC-COMPLAINT': '投诉处理知识集合',
+    'KBC-ESC-ESCALATION': '升级规范知识集合',
+    'KBC-ESC-HIGH-RISK-SCRIPT': '高风险话术知识集合',
+    'KBC-PROD-FAQ': '商品 FAQ 知识集合',
+    'KBC-PROD-SERVICE-POLICY': '服务政策知识集合',
+  };
+  return names[collectionId] ?? collectionId;
+}
+
 function createRagTestRun(snapshot: ServiceHubSnapshot, request: RunRagTestRequest): RagTestRunResult {
   const customer = findCustomer(snapshot, request.customerId) ?? snapshot.customers[0];
   const order = snapshot.orders.find(item => item.id === request.relatedOrderId) ?? snapshot.orders[0];
   const scenarioConfig = resolveScenarioConfig(snapshot.scenarioModelConfigs, request.scenario);
-  const matchedDocs = snapshot.knowledgeDocuments.filter(doc => doc.scenario === request.scenario || doc.scenario === 'Shipping').slice(0, 3);
+  const boundScenarios = new Set(
+    scenarioConfig.knowledgeBindings
+      .filter(binding => binding.enabled)
+      .flatMap(binding => binding.collectionIds)
+      .map(scenarioFromKnowledgeCollectionId)
+      .filter((value): value is string => Boolean(value)),
+  );
+  const boundKnowledgeBaseIds = scenarioConfig.knowledgeBindings.filter(binding => binding.enabled).map(binding => binding.knowledgeBaseId);
+  const boundCollectionIds = scenarioConfig.knowledgeBindings.filter(binding => binding.enabled).flatMap(binding => binding.collectionIds);
+  const matchedDocs = snapshot.knowledgeDocuments
+    .filter(doc => boundScenarios.has(doc.scenario))
+    .slice(0, 3);
   const candidates = matchedDocs.map((doc, index) => ({
     id: `LAB-${String(snapshot.ragTestRuns.length + index + 1).padStart(3, '0')}`,
     source: doc.name,
@@ -347,6 +393,13 @@ function createRagTestRun(snapshot: ServiceHubSnapshot, request: RunRagTestReque
     metadata: {
       language: request.language,
       scenario: request.scenario,
+      scenarioType: request.scenario,
+      strategyId: scenarioConfig.id,
+      knowledgeBaseIds: boundKnowledgeBaseIds.join(','),
+      collectionIds: boundCollectionIds.join(','),
+      collectionName: knowledgeCollectionName(boundCollectionIds.find(collectionId => scenarioFromKnowledgeCollectionId(collectionId) === doc.scenario) ?? boundCollectionIds[0] ?? ''),
+      retrievalProfileId: `${scenarioConfig.id}-retrieval`,
+      nodeId: 'knowledge-retrieval',
       country: customer.country,
       policy_version: doc.version,
       customer_type: customer.type,
@@ -787,7 +840,28 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
     },
     async updateScenarioModelConfig(request: UpdateScenarioModelConfigRequest) {
       const next = cloneSnapshot(snapshot);
-      next.scenarioModelConfigs = next.scenarioModelConfigs.map(item => item.id === request.config.id ? { ...request.config, updatedAt: nowUiStamp() } : item);
+      const hasKnowledgeBinding = request.config.knowledgeBindings.some(binding => binding.enabled && binding.knowledgeBaseId && binding.collectionIds.length > 0);
+      const hasEnabledEmptyBinding = request.config.knowledgeBindings.some(binding => binding.enabled && binding.collectionIds.length === 0);
+      if (!hasKnowledgeBinding) {
+        throw new Error('场景策略必须至少绑定一个知识库和一个知识集合。');
+      }
+      if (hasEnabledEmptyBinding) {
+        throw new Error('请至少选择一个知识集合。');
+      }
+      const missingRequiredNodes = getMissingRequiredNodeIds(request.config, next.pipelineNodeConfigs);
+      if (request.config.manualReviewRequired && missingRequiredNodes.includes('human-review-routing')) {
+        throw new Error('所有输出必须人工复核时，必须启用人工复核路由节点。');
+      }
+      const draftConfig = { ...request.config, updatedAt: nowUiStamp() };
+      const activePolicy = buildEffectiveScenarioPolicies(
+        next.scenarioModelConfigs.map(item => item.id === request.config.id ? draftConfig : item),
+        next.pipelineNodeConfigs,
+        next.ragConfig,
+      ).find(item => item.scenarioConfigId === request.config.id);
+      if (draftConfig.status === 'active' && activePolicy && !activePolicy.canActivate) {
+        throw new Error(activePolicy.validationIssues.join('；'));
+      }
+      next.scenarioModelConfigs = next.scenarioModelConfigs.map(item => item.id === request.config.id ? draftConfig : item);
       const effectiveScenarioPolicies = buildEffectiveScenarioPolicies(next.scenarioModelConfigs, next.pipelineNodeConfigs);
       const effectiveNodePolicies = buildEffectiveNodePolicies(next.capabilityPipeline, next.pipelineNodeConfigs, next.scenarioModelConfigs);
       next.modelRoutingSummary = {
@@ -801,16 +875,23 @@ export function createMockServiceHubApi(snapshot: ServiceHubSnapshot): ServiceHu
     },
     async updatePipelineNodeConfig(request: UpdatePipelineNodeConfigRequest) {
       const next = cloneSnapshot(snapshot);
-      next.pipelineNodeConfigs = next.pipelineNodeConfigs.map(item => item.id === request.config.id ? { ...request.config, updatedAt: nowUiStamp() } : item);
-      next.capabilityPipeline = next.capabilityPipeline.map(item => item.id === request.config.nodeId ? { ...item, enabled: request.config.enabled, requiresHumanConfirmation: request.config.humanConfirmationRequired, fallback: request.config.fallbackStrategy, appliesToScenarios: request.config.allowedScenarios.map(value => value === 'Product Inquiry' ? '商品咨询' : value === 'Shipping' ? '物流' : value === 'Refund' ? '退款' : value === 'Payment' ? '支付' : value === 'Complaint' ? '投诉' : value === 'Compensation' ? '赔偿' : value === 'Chargeback' ? '拒付' : value) } : item);
+      const normalizedConfig = request.config.usesKnowledgeBase
+        ? request.config
+        : { ...request.config, citationRequired: false, requireCitation: false };
+      next.pipelineNodeConfigs = next.pipelineNodeConfigs.map(item => item.id === normalizedConfig.id ? { ...normalizedConfig, updatedAt: nowUiStamp() } : item);
+      next.capabilityPipeline = next.capabilityPipeline.map(item => item.id === normalizedConfig.nodeId ? { ...item, enabled: normalizedConfig.enabled, requiresHumanConfirmation: normalizedConfig.humanConfirmationRequired, fallback: normalizedConfig.fallbackStrategy, appliesToScenarios: normalizedConfig.allowedScenarios.map(value => value === 'Product Inquiry' ? '商品咨询' : value === 'Shipping' ? '物流' : value === 'Refund' ? '退款' : value === 'Payment' ? '支付' : value === 'Complaint' ? '投诉' : value === 'Compensation' ? '赔偿' : value === 'Chargeback' ? '拒付' : value) } : item);
       const effectiveScenarioPolicies = buildEffectiveScenarioPolicies(next.scenarioModelConfigs, next.pipelineNodeConfigs);
       const effectiveNodePolicies = buildEffectiveNodePolicies(next.capabilityPipeline, next.pipelineNodeConfigs, next.scenarioModelConfigs);
       next.modelRoutingSummary = {
         ...buildDerivedRoutingSummary(next.aiEnvironment, next.ragConfig, effectiveScenarioPolicies, effectiveNodePolicies),
         defaultScenarioConfigId: next.modelRoutingSummary.defaultScenarioConfigId,
       };
-      const config = next.pipelineNodeConfigs.find(item => item.id === request.config.id) ?? request.config;
-      prependAudit(next, 'Config change', `能力节点配置已更新：${request.config.name}，启用=${request.config.enabled ? '是' : '否'}`);
+      const config = next.pipelineNodeConfigs.find(item => item.id === normalizedConfig.id) ?? normalizedConfig;
+      prependAudit(
+        next,
+        'Config change',
+        `能力节点配置已更新：${normalizedConfig.name}，启用=${normalizedConfig.enabled ? '是' : '否'}${request.config.usesKnowledgeBase ? '' : '；非知识节点引用来源已归一为否'}`,
+      );
       withServiceHealth(next);
       return { snapshot: next, config };
     },

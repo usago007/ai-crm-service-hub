@@ -636,7 +636,74 @@ const capabilityPipeline: CapabilityPipelineNode[] = [
   { id: 'feedback-capture', name: '反馈采集', enabled: true, input: '客服采纳 / 编辑 / 驳回行为', output: '反馈记录与优化建议', fallback: '仅记录审计日志', appliesToScenarios: ['物流', '退款', '商品咨询', '支付', '投诉'], requiresHumanConfirmation: false },
 ];
 
-const scenarioModelConfigs: ScenarioModelConfig[] = [
+type ScenarioModelConfigSeed = Omit<ScenarioModelConfig, 'status' | 'outputMode' | 'knowledgeBindings' | 'evaluationSetIds' | 'safetyRuleIds' | 'nodeOverrides'>;
+
+const standardScenarioNodeOrder = [
+  'intent-classification',
+  'customer-matching',
+  'order-linking',
+  'conversation-summary',
+  'knowledge-retrieval',
+  'policy-check',
+  'risk-detection',
+  'reply-drafting',
+  'human-review-routing',
+  'followup-task',
+  'feedback-capture',
+];
+
+const highRiskScenarioSet = new Set(['Refund', 'Complaint', 'Compensation', 'Chargeback']);
+const paymentRiskBlockedClaims = ['不得承诺支付成功', '不得承诺退款到账', '不得承诺赔付结果'];
+
+function defaultSystemPrompt(scenario: string) {
+  return `You are an AI customer service copilot for the ${scenario} scenario. Use only the bound knowledge collections, cite policy evidence when required, and never make commitments outside the active scenario strategy.`;
+}
+
+function knowledgeBindingsForScenario(scenario: string): ScenarioModelConfig['knowledgeBindings'] {
+  const map: Record<string, ScenarioModelConfig['knowledgeBindings']> = {
+    Shipping: [{ knowledgeBaseId: 'KB-OPS', enabled: true, collectionIds: ['KBC-OPS-LOGISTICS', 'KBC-OPS-DELIVERY-SLA', 'KBC-OPS-ORDER-TRACKING'] }],
+    Refund: [{ knowledgeBaseId: 'KB-AFTERSALES', enabled: true, collectionIds: ['KBC-AFTERSALES-REFUND', 'KBC-AFTERSALES-RETURN', 'KBC-AFTERSALES-PAYMENT-COMPENSATION'] }],
+    Payment: [{ knowledgeBaseId: 'KB-AFTERSALES', enabled: true, collectionIds: ['KBC-AFTERSALES-PAYMENT-COMPENSATION'] }],
+    'Product Inquiry': [{ knowledgeBaseId: 'KB-PROD', enabled: true, collectionIds: ['KBC-PROD-FAQ', 'KBC-PROD-SERVICE-POLICY'] }],
+    Complaint: [{ knowledgeBaseId: 'KB-ESC', enabled: true, collectionIds: ['KBC-ESC-COMPLAINT', 'KBC-ESC-ESCALATION', 'KBC-ESC-HIGH-RISK-SCRIPT'] }],
+    Compensation: [{ knowledgeBaseId: 'KB-ESC', enabled: true, collectionIds: ['KBC-ESC-ESCALATION', 'KBC-ESC-HIGH-RISK-SCRIPT'] }],
+    Chargeback: [{ knowledgeBaseId: 'KB-ESC', enabled: true, collectionIds: ['KBC-ESC-ESCALATION', 'KBC-ESC-HIGH-RISK-SCRIPT'] }],
+  };
+  return map[scenario] ?? [];
+}
+
+function nodeOverridesForScenario(scenario: string): ScenarioModelConfig['nodeOverrides'] {
+  const highRisk = highRiskScenarioSet.has(scenario);
+  return standardScenarioNodeOrder.map((nodeId, index) => {
+    const alwaysOn = ['intent-classification', 'knowledge-retrieval', 'reply-drafting', 'feedback-capture'].includes(nodeId);
+    const highRiskOnly = ['policy-check', 'risk-detection', 'human-review-routing'].includes(nodeId);
+    const enabled = alwaysOn || (highRiskOnly && highRisk) || ['customer-matching', 'order-linking', 'conversation-summary'].includes(nodeId);
+    return {
+      nodeId,
+      enabled,
+      order: index + 1,
+      overrideMode: highRiskOnly && highRisk ? 'override' as const : 'inherit' as const,
+      ...(highRiskOnly && highRisk ? { humanConfirmationRequired: true } : {}),
+    };
+  });
+}
+
+function enrichScenarioConfig(config: ScenarioModelConfigSeed): ScenarioModelConfig {
+  const highRisk = highRiskScenarioSet.has(config.scenario);
+  return {
+    ...config,
+    status: 'active',
+    outputMode: highRisk || config.scenario === 'Payment' ? 'draft_reply' : config.scenario === 'Product Inquiry' ? 'low_risk_auto_reply' : 'agent_suggestion',
+    knowledgeBindings: knowledgeBindingsForScenario(config.scenario),
+    evaluationSetIds: [`EVAL-${config.scenario.toUpperCase().replace(/\s+/g, '-')}`],
+    safetyRuleIds: highRisk ? ['SAFE-HIGH-RISK', 'SAFE-MANUAL-REVIEW'] : ['SAFE-CITATION', 'SAFE-NO-AUTOSEND'],
+    nodeOverrides: nodeOverridesForScenario(config.scenario),
+    blockedClaims: config.scenario === 'Payment' ? [...new Set([...config.blockedClaims, ...paymentRiskBlockedClaims])] : config.blockedClaims,
+    systemPrompt: config.systemPrompt ?? defaultSystemPrompt(config.scenario),
+  };
+}
+
+const scenarioModelConfigSeeds: ScenarioModelConfigSeed[] = [
   { id: 'SCN-001', scenario: 'Shipping', name: '物流标准回复策略', version: 'v2.3', primaryModel: 'gpt-4o-mini', fallbackModel: 'gpt-4.1-mini', modelChannel: '稳定版', temperature: 0.2, maxOutputTokens: 320, contextWindow: 16000, queryRewriteEnabled: true, rerankerEnabled: true, topK: 5, similarityThreshold: 0.78, citationRequired: true, aiSuggestAllowed: true, manualReviewRequired: false, humanSendAllowed: true, blockedClaims: ['不得编造预计送达日期', '不得承诺赔偿'], lowConfidenceFallback: '转人工补写', noMatchFallback: '转人工编写回复', sensitiveCaseFallback: '升级物流主管复核', updatedAt: '2026-05-22 13:40', systemPrompt: 'You are a cross-border e-commerce customer service agent for an independent online store. Your primary role is to assist customers with logistics, order tracking, delivery delays, and shipping-related inquiries.\n\nRules:\n- Always reference the specific order ID and tracking information when available.\n- Do NOT fabricate estimated delivery dates or promise compensation without policy support.\n- If tracking has not updated for more than 5 business days, escalate to the logistics team.\n- Use a helpful, professional tone. Acknowledge the customer\'s frustration before offering solutions.\n- Cite retrieved knowledge documents to support your advice.' },
   { id: 'SCN-002', scenario: 'Refund', name: '退款复核策略', version: 'v3.1', primaryModel: 'gpt-4.1-mini', fallbackModel: 'gpt-4o-mini', modelChannel: '稳定版', temperature: 0.1, maxOutputTokens: 260, contextWindow: 12000, queryRewriteEnabled: true, rerankerEnabled: true, topK: 6, similarityThreshold: 0.8, citationRequired: true, aiSuggestAllowed: true, manualReviewRequired: true, humanSendAllowed: false, blockedClaims: ['不得批准退款', '不得承诺到账时间'], lowConfidenceFallback: '进入人工复核', noMatchFallback: '要求补充证据后转人工', sensitiveCaseFallback: '升级主管审批', updatedAt: '2026-05-22 13:40' },
   { id: 'SCN-003', scenario: 'Product Inquiry', name: '商品咨询转化策略', version: 'v1.8', primaryModel: 'gpt-4o-mini', fallbackModel: 'gpt-4.1-mini', modelChannel: '稳定版', temperature: 0.35, maxOutputTokens: 360, contextWindow: 14000, queryRewriteEnabled: true, rerankerEnabled: true, topK: 4, similarityThreshold: 0.74, citationRequired: true, aiSuggestAllowed: true, manualReviewRequired: false, humanSendAllowed: true, blockedClaims: ['不得编造商品规格'], lowConfidenceFallback: '转人工核验规格', noMatchFallback: '回退到商品模板', sensitiveCaseFallback: '升级商品团队确认', updatedAt: '2026-05-22 13:40' },
@@ -646,7 +713,273 @@ const scenarioModelConfigs: ScenarioModelConfig[] = [
   { id: 'SCN-007', scenario: 'Chargeback', name: '拒付争议策略', version: 'v1.9', primaryModel: 'gpt-4.1-mini', fallbackModel: 'gpt-4o-mini', modelChannel: '稳定版', temperature: 0.1, maxOutputTokens: 220, contextWindow: 12000, queryRewriteEnabled: true, rerankerEnabled: true, topK: 6, similarityThreshold: 0.84, citationRequired: true, aiSuggestAllowed: true, manualReviewRequired: true, humanSendAllowed: false, blockedClaims: ['不得承认拒付责任', '不得承诺退款'], lowConfidenceFallback: '升级拒付专员', noMatchFallback: '转人工争议处理', sensitiveCaseFallback: '升级法务复核', updatedAt: '2026-05-22 13:40' },
 ];
 
-const pipelineNodeConfigs: PipelineNodeModelConfig[] = [
+const scenarioModelConfigs: ScenarioModelConfig[] = scenarioModelConfigSeeds.map(enrichScenarioConfig);
+
+type PipelineNodeConfigSeed = Omit<
+  PipelineNodeModelConfig,
+  | 'nodeName'
+  | 'nodeType'
+  | 'stage'
+  | 'executionMode'
+  | 'defaultModel'
+  | 'inputFields'
+  | 'retryTimes'
+  | 'failureStrategy'
+  | 'defaultScenarioTypes'
+  | 'dependsOn'
+  | 'requiredWhen'
+  | 'usesKnowledgeBase'
+  | 'knowledgeScopeMode'
+  | 'requireCitation'
+  | 'overridableFields'
+  | 'enabledByDefault'
+  | 'lockedWhen'
+>;
+
+const pipelineNodeMetadata: Record<string, Omit<PipelineNodeModelConfig,
+  | 'id'
+  | 'nodeId'
+  | 'name'
+  | 'primaryModel'
+  | 'fallbackModel'
+  | 'inputSource'
+  | 'outputSchema'
+  | 'timeoutMs'
+  | 'retryCount'
+  | 'fallbackStrategy'
+  | 'citationRequired'
+  | 'humanConfirmationRequired'
+  | 'allowedScenarios'
+  | 'inheritFromScenario'
+  | 'enabled'
+  | 'updatedAt'
+>> = {
+  'intent-classification': {
+    nodeName: '意图识别',
+    nodeType: 'classification',
+    stage: 'pre_process',
+    executionMode: 'llm',
+    defaultModel: 'gpt-4o-mini',
+    inputFields: ['customer_message', 'conversation_summary'],
+    retryTimes: 1,
+    failureStrategy: '回退到通用咨询分类',
+    defaultScenarioTypes: ['Shipping', 'Refund', 'Product Inquiry', 'Payment', 'Complaint', 'Compensation', 'Chargeback'],
+    dependsOn: [],
+    requiredWhen: ['active'],
+    usesKnowledgeBase: false,
+    knowledgeScopeMode: 'none',
+    requireCitation: false,
+    overridableFields: ['model', 'fallbackModel', 'timeoutMs', 'retryTimes', 'failureStrategy'],
+    enabledByDefault: true,
+    lockedWhen: ['active'],
+  },
+  'customer-matching': {
+    nodeName: '客户匹配',
+    nodeType: 'matching',
+    stage: 'context_enrichment',
+    executionMode: 'deterministic',
+    defaultModel: undefined,
+    inputFields: ['email', 'order_id', 'customer_name'],
+    retryTimes: 0,
+    failureStrategy: '创建待确认线索',
+    defaultScenarioTypes: ['Shipping', 'Refund', 'Product Inquiry', 'Payment', 'Complaint'],
+    dependsOn: [],
+    requiredWhen: ['optional'],
+    usesKnowledgeBase: false,
+    knowledgeScopeMode: 'none',
+    requireCitation: false,
+    overridableFields: ['failureStrategy', 'timeoutMs', 'retryTimes'],
+    enabledByDefault: true,
+    lockedWhen: [],
+  },
+  'order-linking': {
+    nodeName: '订单关联',
+    nodeType: 'lookup',
+    stage: 'context_enrichment',
+    executionMode: 'deterministic',
+    defaultModel: undefined,
+    inputFields: ['customer_id', 'order_id'],
+    retryTimes: 0,
+    failureStrategy: '要求客服补录订单号',
+    defaultScenarioTypes: ['Shipping', 'Refund', 'Payment', 'Complaint'],
+    dependsOn: ['customer-matching'],
+    requiredWhen: ['shipping_refund_payment_recommended'],
+    usesKnowledgeBase: false,
+    knowledgeScopeMode: 'none',
+    requireCitation: false,
+    overridableFields: ['failureStrategy', 'timeoutMs', 'retryTimes'],
+    enabledByDefault: true,
+    lockedWhen: [],
+  },
+  'conversation-summary': {
+    nodeName: '会话摘要',
+    nodeType: 'summary',
+    stage: 'context_enrichment',
+    executionMode: 'llm',
+    defaultModel: 'gpt-4o-mini',
+    inputFields: ['conversation_history', 'customer_context'],
+    retryTimes: 1,
+    failureStrategy: '仅保留最近三条消息',
+    defaultScenarioTypes: ['Shipping', 'Refund', 'Product Inquiry', 'Payment', 'Complaint'],
+    dependsOn: [],
+    requiredWhen: ['optional'],
+    usesKnowledgeBase: false,
+    knowledgeScopeMode: 'none',
+    requireCitation: false,
+    overridableFields: ['model', 'fallbackModel', 'timeoutMs', 'retryTimes', 'failureStrategy'],
+    enabledByDefault: true,
+    lockedWhen: [],
+  },
+  'knowledge-retrieval': {
+    nodeName: '知识检索',
+    nodeType: 'retrieval',
+    stage: 'knowledge_grounding',
+    executionMode: 'hybrid',
+    defaultModel: undefined,
+    inputFields: ['customer_question', 'customer_profile', 'order_context'],
+    retryTimes: 1,
+    failureStrategy: '触发无命中回退策略',
+    defaultScenarioTypes: ['Shipping', 'Refund', 'Product Inquiry', 'Payment', 'Complaint', 'Compensation', 'Chargeback'],
+    dependsOn: ['intent-classification'],
+    requiredWhen: ['active'],
+    usesKnowledgeBase: true,
+    knowledgeScopeMode: 'strategy_bound',
+    requireCitation: true,
+    overridableFields: ['topK', 'similarityThreshold', 'queryRewriteEnabled', 'rerankerEnabled', 'requireCitation', 'knowledgeCollectionScope', 'timeoutMs', 'retryTimes', 'failureStrategy'],
+    enabledByDefault: true,
+    lockedWhen: ['active'],
+  },
+  'policy-check': {
+    nodeName: '政策检查',
+    nodeType: 'policy_check',
+    stage: 'decision_check',
+    executionMode: 'llm',
+    defaultModel: 'gpt-4.1-mini',
+    inputFields: ['retrieved_chunks', 'business_rules'],
+    retryTimes: 1,
+    failureStrategy: '采用最保守政策口径',
+    defaultScenarioTypes: ['Refund', 'Complaint', 'Compensation', 'Chargeback'],
+    dependsOn: ['knowledge-retrieval'],
+    requiredWhen: ['sensitive_scenario'],
+    usesKnowledgeBase: true,
+    knowledgeScopeMode: 'strategy_bound',
+    requireCitation: true,
+    overridableFields: ['model', 'fallbackModel', 'requireCitation', 'humanConfirmationRequired', 'forbiddenClaims', 'failureStrategy', 'timeoutMs'],
+    enabledByDefault: true,
+    lockedWhen: ['sensitive_scenario'],
+  },
+  'reply-drafting': {
+    nodeName: '回复草稿生成',
+    nodeType: 'generation',
+    stage: 'response_generation',
+    executionMode: 'llm',
+    defaultModel: 'gpt-4o-mini',
+    inputFields: ['prompt_context'],
+    retryTimes: 1,
+    failureStrategy: '回退到模板草稿',
+    defaultScenarioTypes: ['Shipping', 'Refund', 'Product Inquiry', 'Payment', 'Complaint'],
+    dependsOn: ['knowledge-retrieval'],
+    requiredWhen: ['active'],
+    usesKnowledgeBase: true,
+    knowledgeScopeMode: 'retrieved_context',
+    requireCitation: true,
+    overridableFields: ['model', 'fallbackModel', 'promptFragment', 'tone', 'outputSchema', 'requireCitation', 'timeoutMs'],
+    enabledByDefault: true,
+    lockedWhen: ['active'],
+  },
+  'risk-detection': {
+    nodeName: '风险识别',
+    nodeType: 'risk_check',
+    stage: 'decision_check',
+    executionMode: 'hybrid',
+    defaultModel: 'gpt-4.1-mini',
+    inputFields: ['draft_reply', 'scenario', 'risk_tags'],
+    retryTimes: 1,
+    failureStrategy: '全部高敏场景转人工',
+    defaultScenarioTypes: ['Refund', 'Complaint', 'Compensation', 'Chargeback'],
+    dependsOn: ['policy-check', 'reply-drafting'],
+    requiredWhen: ['sensitive_scenario'],
+    usesKnowledgeBase: false,
+    knowledgeScopeMode: 'optional_context',
+    requireCitation: false,
+    overridableFields: ['model', 'fallbackModel', 'riskThreshold', 'humanConfirmationRequired', 'failureStrategy'],
+    enabledByDefault: true,
+    lockedWhen: ['sensitive_scenario'],
+  },
+  'human-review-routing': {
+    nodeName: '人工复核路由',
+    nodeType: 'routing',
+    stage: 'review_routing',
+    executionMode: 'deterministic',
+    defaultModel: undefined,
+    inputFields: ['risk_result', 'confidence', 'scenario_strategy'],
+    retryTimes: 0,
+    failureStrategy: '不确定时一律复核',
+    defaultScenarioTypes: ['Shipping', 'Refund', 'Product Inquiry', 'Payment', 'Complaint', 'Compensation', 'Chargeback'],
+    dependsOn: ['risk-detection'],
+    requiredWhen: ['sensitive_scenario', 'manual_review_required'],
+    usesKnowledgeBase: false,
+    knowledgeScopeMode: 'none',
+    requireCitation: false,
+    overridableFields: ['routeRules', 'humanConfirmationRequired', 'failureStrategy'],
+    enabledByDefault: true,
+    lockedWhen: ['sensitive_scenario', 'manual_review_required'],
+  },
+  'followup-task': {
+    nodeName: '跟进任务创建',
+    nodeType: 'task',
+    stage: 'post_process',
+    executionMode: 'deterministic',
+    defaultModel: undefined,
+    inputFields: ['processing_result', 'sla'],
+    retryTimes: 0,
+    failureStrategy: '由客服手动创建任务',
+    defaultScenarioTypes: ['Shipping', 'Refund', 'Complaint'],
+    dependsOn: ['human-review-routing'],
+    requiredWhen: ['optional'],
+    usesKnowledgeBase: false,
+    knowledgeScopeMode: 'none',
+    requireCitation: false,
+    overridableFields: ['failureStrategy', 'timeoutMs', 'retryTimes'],
+    enabledByDefault: true,
+    lockedWhen: [],
+  },
+  'feedback-capture': {
+    nodeName: '反馈采集',
+    nodeType: 'feedback',
+    stage: 'post_process',
+    executionMode: 'deterministic',
+    defaultModel: 'gpt-4o-mini',
+    inputFields: ['agent_edit', 'send_action', 'reject_action'],
+    retryTimes: 0,
+    failureStrategy: '仅记录审计日志',
+    defaultScenarioTypes: ['Shipping', 'Refund', 'Product Inquiry', 'Payment', 'Complaint'],
+    dependsOn: [],
+    requiredWhen: ['optional'],
+    usesKnowledgeBase: false,
+    knowledgeScopeMode: 'none',
+    requireCitation: false,
+    overridableFields: ['failureStrategy', 'timeoutMs', 'retryTimes'],
+    enabledByDefault: true,
+    lockedWhen: [],
+  },
+};
+
+function enrichPipelineNodeConfig(config: PipelineNodeConfigSeed): PipelineNodeModelConfig {
+  const metadata = pipelineNodeMetadata[config.nodeId];
+  return {
+    ...config,
+    ...metadata,
+    defaultModel: metadata.defaultModel ?? config.primaryModel,
+    retryTimes: config.retryCount,
+    failureStrategy: config.fallbackStrategy,
+    defaultScenarioTypes: config.allowedScenarios,
+    requireCitation: config.citationRequired,
+    enabledByDefault: config.enabled,
+  };
+}
+
+const pipelineNodeConfigSeeds: PipelineNodeConfigSeed[] = [
   { id: 'NODE-001', nodeId: 'intent-classification', name: '意图识别配置', primaryModel: 'gpt-4o-mini', fallbackModel: 'gpt-4.1-mini', inputSource: '客户最新消息 + 历史摘要', outputSchema: 'intent, confidence, risk_signals', timeoutMs: 2500, retryCount: 1, fallbackStrategy: '回退到通用咨询分类', citationRequired: false, humanConfirmationRequired: false, allowedScenarios: ['Shipping', 'Refund', 'Product Inquiry', 'Payment', 'Complaint', 'Compensation', 'Chargeback'], inheritFromScenario: false, enabled: true, updatedAt: '2026-05-22 13:40' },
   { id: 'NODE-002', nodeId: 'customer-matching', name: '客户匹配配置', primaryModel: undefined, fallbackModel: undefined, inputSource: '邮箱 / 订单号 / 姓名', outputSchema: 'customer_profile', timeoutMs: 0, retryCount: 0, fallbackStrategy: '创建待确认线索', citationRequired: false, humanConfirmationRequired: false, allowedScenarios: ['Shipping', 'Refund', 'Product Inquiry', 'Payment', 'Complaint'], inheritFromScenario: true, enabled: true, updatedAt: '2026-05-22 13:40' },
   { id: 'NODE-003', nodeId: 'order-linking', name: '订单关联配置', primaryModel: undefined, fallbackModel: undefined, inputSource: '客户 ID + 订单号', outputSchema: 'order_context', timeoutMs: 0, retryCount: 0, fallbackStrategy: '要求客服补录订单号', citationRequired: false, humanConfirmationRequired: false, allowedScenarios: ['Shipping', 'Refund', 'Payment', 'Complaint'], inheritFromScenario: true, enabled: true, updatedAt: '2026-05-22 13:40' },
@@ -659,6 +992,8 @@ const pipelineNodeConfigs: PipelineNodeModelConfig[] = [
   { id: 'NODE-010', nodeId: 'followup-task', name: '跟进任务配置', primaryModel: undefined, fallbackModel: undefined, inputSource: '处理结果 + SLA', outputSchema: 'followup_task', timeoutMs: 0, retryCount: 0, fallbackStrategy: '由客服手动创建任务', citationRequired: false, humanConfirmationRequired: false, allowedScenarios: ['Shipping', 'Refund', 'Complaint'], inheritFromScenario: true, enabled: true, updatedAt: '2026-05-22 13:40' },
   { id: 'NODE-011', nodeId: 'feedback-capture', name: '反馈采集配置', primaryModel: 'gpt-4o-mini', fallbackModel: undefined, inputSource: '客服编辑 / 发送 / 驳回行为', outputSchema: 'feedback_signal', timeoutMs: 1800, retryCount: 0, fallbackStrategy: '仅记录审计日志', citationRequired: false, humanConfirmationRequired: false, allowedScenarios: ['Shipping', 'Refund', 'Product Inquiry', 'Payment', 'Complaint'], inheritFromScenario: false, enabled: true, updatedAt: '2026-05-22 13:40' },
 ];
+
+const pipelineNodeConfigs: PipelineNodeModelConfig[] = pipelineNodeConfigSeeds.map(enrichPipelineNodeConfig);
 
 const modelRoutingSummary: ModelRoutingSummary = {
   defaultModel: aiEnvironment.defaultModel,
@@ -1208,7 +1543,7 @@ const auditLogs: AuditLogRecord[] = [
   },
   { id: 'AUD-009', ticketId: 'SYSTEM', eventType: 'Config change', actor: '知识运营', outcome: '全局 RAG 检索配置已更新。', riskLevel: 'Low', timestamp: '2026-05-26 10:15', detail: 'Top K 从 5 调整为 7，重排序从关闭切换为开启，以提升高敏场景的检索精度。' },
   { id: 'AUD-010', ticketId: 'SYSTEM', eventType: 'Config change', actor: 'AI 辅助运行时', outcome: '物流场景策略已更新。', riskLevel: 'Low', timestamp: '2026-05-25 15:40', detail: '物流场景（SCN-001）主模型从 gpt-4o-mini 切换为 gpt-4.1-mini，temperature 从 0.3 降为 0.2。' },
-  { id: 'AUD-011', ticketId: 'SYSTEM', eventType: 'Config change', actor: '知识运营', outcome: '知识库配置覆盖已保存。', riskLevel: 'Low', timestamp: '2026-05-24 09:30', detail: 'KB-OPS（履约与退款知识库）chunkSize 从全局默认 600 覆盖为 500。' },
+  { id: 'AUD-011', ticketId: 'SYSTEM', eventType: 'Config change', actor: '知识运营', outcome: '知识库配置覆盖已保存。', riskLevel: 'Low', timestamp: '2026-05-24 09:30', detail: 'KB-OPS（履约与物流知识库）chunkSize 从全局默认 600 覆盖为 500。' },
   { id: 'AUD-012', ticketId: 'SYSTEM', eventType: 'KB created', actor: '知识运营', outcome: '新知识库已创建。', riskLevel: 'Low', timestamp: '2026-05-27 11:00', detail: '创建了「东南亚物流专项库」，覆盖场景：物流、退款，chunkSize=300，topK=8。' },
   { id: 'AUD-013', ticketId: 'SYSTEM', eventType: 'KB archived', actor: '知识运营', outcome: '知识库已归档。', riskLevel: 'Low', timestamp: '2026-05-28 09:00', detail: '「VIP 客户专属知识库」因内容已合并至主知识库，已被归档。' },
   { id: 'AUD-014', ticketId: 'SYSTEM', eventType: 'Scenario config change', actor: '风控', outcome: '投诉场景禁止声明已更新。', riskLevel: 'Medium', timestamp: '2026-05-26 16:20', detail: '投诉场景（SCN-005）blockedClaims 中新增「不得建议客户撤销信用卡争议(chargeback)」。' },

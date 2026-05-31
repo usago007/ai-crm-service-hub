@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Badge } from '../../../../components/common/Badge';
-import { StatusPill, healthBadgeVariant, booleanLabel } from './helpers';
+import { StatusPill, booleanLabel } from './helpers';
 import { displayScenario } from '../../../../utils/display';
 import type { FunctionalModelStatus, ScenarioModelStatus } from '../../../../types';
 
