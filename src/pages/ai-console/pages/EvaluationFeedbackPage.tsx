@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Badge } from '../../../components/common/Badge';
 import { Button } from '../../../components/common/Button';
 import { Modal } from '../../../components/common/Modal';
@@ -33,9 +33,6 @@ export function EvaluationFeedbackPage({
   const [showNewFeedback, setShowNewFeedback] = useState(false);
   const [newEval, setNewEval] = useState({ target: '', refId: '', scenario: '', metric: '', score: '', issue: '', suggestion: '', conclusion: 'pass' as const });
   const [newFeedback, setNewFeedback] = useState({ source: '', refId: '', scenario: '', issueType: '', severity: 'medium' as const, description: '', action: '', createTodo: true });
-
-  useEffect(() => { setLocalEvaluations(evaluations); }, [evaluations]);
-  useEffect(() => { setLocalFeedbackLoop(feedbackLoop); }, [feedbackLoop]);
 
   const [auditSearch, setAuditSearch] = useState('');
   const [auditRiskFilter, setAuditRiskFilter] = useState('all');

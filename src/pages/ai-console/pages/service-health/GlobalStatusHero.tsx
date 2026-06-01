@@ -1,6 +1,6 @@
 import { Button } from '../../../../components/common/Button';
 import { Badge } from '../../../../components/common/Badge';
-import { healthBadgeVariant, healthStatusLabel } from './helpers';
+import { healthBadgeVariant, healthStatusLabel } from './helperLabels';
 import type { ServiceHealthStatus } from '../../../../types';
 
 interface GlobalStatusHeroProps {

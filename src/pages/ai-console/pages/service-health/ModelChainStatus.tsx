@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Badge } from '../../../../components/common/Badge';
-import { StatusPill, booleanLabel } from './helpers';
+import { StatusPill } from './helpers';
+import { booleanLabel } from './helperLabels';
 import { displayScenario } from '../../../../utils/display';
 import type { FunctionalModelStatus, ScenarioModelStatus } from '../../../../types';
 

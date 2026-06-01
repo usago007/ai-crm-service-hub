@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Badge } from '../../../../components/common/Badge';
 import { Button } from '../../../../components/common/Button';
 import { inputCls } from '../../sharedUtils';
-import { DependencyNode, healthBadgeVariant, healthStatusLabel } from './helpers';
+import { DependencyNode } from './helpers';
+import { healthBadgeVariant, healthStatusLabel } from './helperLabels';
 import type { LLMStatus, EmbeddingServiceStatus, VectorDbStatus, DocumentIngestionQueueStatus, FunctionalModelStatus, ScenarioModelStatus, ServiceHealthStatus } from '../../../../types';
 
 interface HealthHistoryItem {
@@ -49,7 +50,9 @@ function loadThresholds(): ThresholdState {
       const parsed = JSON.parse(saved);
       return { ...DEFAULT_THRESHOLDS, ...parsed };
     }
-  } catch {}
+  } catch {
+    return { ...DEFAULT_THRESHOLDS };
+  }
   return { ...DEFAULT_THRESHOLDS };
 }
 

@@ -2,13 +2,15 @@ import { useMemo } from 'react';
 import { Badge } from '../../../../components/common/Badge';
 import { Button } from '../../../../components/common/Button';
 import { DataTable } from '../../shared';
-import { queueTaskStatusLabel, commonValueLabel } from './helpers';
+import { commonValueLabel, queueTaskStatusLabel } from './helperLabels';
 import type { IngestionQueueTask } from '../../../../types';
 
 interface IngestionTasksTableProps {
   tasks: IngestionQueueTask[];
   onRetryFailedJobs: () => void;
 }
+
+const STATUS_ORDER: Record<string, number> = { failed: 0, retrying: 1, running: 2, pending: 3, completed: 4 };
 
 function stageLabel(stage: string) {
   if (stage === 'Parse') return '解析';
@@ -26,10 +28,8 @@ function taskBadgeVariant(status: string) {
 }
 
 export function IngestionTasksTable({ tasks, onRetryFailedJobs }: IngestionTasksTableProps) {
-  const statusOrder: Record<string, number> = { failed: 0, retrying: 1, running: 2, pending: 3, completed: 4 };
-
   const sortedTasks = useMemo(() => {
-    return [...tasks].sort((a, b) => (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99));
+    return [...tasks].sort((a, b) => (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99));
   }, [tasks]);
 
   const completedTasks = sortedTasks.filter(t => t.status === 'completed');

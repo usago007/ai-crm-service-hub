@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { Agent, MemberPermissionAssignment, PermissionBoundary, SettingsData, TeamRolePermissionProfile } from '../types';
 import { Badge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
@@ -385,9 +385,9 @@ function PermissionsAndTeam({ settings, permissionBoundaries, onUpdateSettings, 
 export function Settings({ lang, onLanguageChange, onUpdateSettings, onUpdatePermissionBoundaries, settings, agents, permissionBoundaries, initialTab }: SettingsProps) {
   const { t } = useT();
   const [tab, setTab] = useState<string>(initialTab ?? 'general');
-  useEffect(() => { if (initialTab) setTab(initialTab); }, [initialTab]);
   const isSubPage = initialTab !== undefined;
-  const activeTabItem = tabs.find(t => t.key === tab) ?? tabs[0];
+  const activeTab = initialTab ?? tab;
+  const activeTabItem = tabs.find(t => t.key === activeTab) ?? tabs[0];
 
   if (isSubPage) {
     return (
@@ -397,12 +397,12 @@ export function Settings({ lang, onLanguageChange, onUpdateSettings, onUpdatePer
             <div className="min-w-0">
               <div className="text-[20px] font-semibold tracking-[-0.02em]">{activeTabItem.label}</div>
               <div className="text-sm text-[var(--color-text-secondary)] mt-1 leading-6">
-                {tab === 'general' ? '配置语言环境、时区、服务渠道和通知偏好。' : '管理角色权限与团队成员分配。'}
+                {activeTab === 'general' ? '配置语言环境、时区、服务渠道和通知偏好。' : '管理角色权限与团队成员分配。'}
               </div>
             </div>
           </div>
         </div>
-        <PanelCard>{renderTabContent(tab, lang, onLanguageChange, onUpdateSettings, onUpdatePermissionBoundaries, settings, permissionBoundaries, t)}</PanelCard>
+        <PanelCard>{renderTabContent(activeTab, lang, onLanguageChange, onUpdateSettings, onUpdatePermissionBoundaries, settings, permissionBoundaries, t)}</PanelCard>
       </div>
     );
   }

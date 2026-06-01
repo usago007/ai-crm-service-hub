@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
-import type { CustomerProfile, ListQuery, Message, Order, PagedResult, ReplyDraft, ReplyTemplate, ReviewDecision, ServiceTicket, TicketAction, TicketFilters } from '../types';
+import type { CustomerProfile, Order } from '../types/customer';
+import type { ListQuery, PagedResult } from '../types/pagination';
+import type { Message, ReplyDraft, ReplyTemplate, ReviewDecision, ServiceTicket, TicketAction, TicketFilters } from '../types/ticket';
 import { useT } from '../i18n';
 import { Badge } from '../components/common/Badge';
 import { Pagination } from '../components/common/Pagination';
@@ -7,7 +9,8 @@ import { Button } from '../components/common/Button';
 import { DetailPanel, EmptyState, PanelCard, inputCls } from '../components/common/PageChrome';
 import { AlertTriangle, Bot, CheckSquare, ChevronDown, ChevronUp, FileText, Save, Send, SlidersHorizontal } from 'lucide-react';
 import { displayChannel, displayFulfillmentStatus, displayIssueType, displayLanguage, displayPaymentStatus, displayReviewStatus, displayRiskLevel, displayScenario, displayTicketStatus, displayWorkflow } from '../utils/display';
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { buildReviewChecklist, getCustomerOverview, getHighestCitation, getRiskRuleName, getSlaProgress, getStatusSummary } from '../shared/view-models/customerServiceViewModel';
 
 interface CustomerServiceProps {
   result: PagedResult<ServiceTicket>;
@@ -34,6 +37,8 @@ interface CustomerServiceProps {
   replyTemplates: ReplyTemplate[];
 }
 
+const INITIAL_NOW_MS = Date.now();
+
 export function CustomerService({
   result,
   query,
@@ -59,6 +64,7 @@ export function CustomerService({
   replyTemplates,
 }: CustomerServiceProps) {
   const { t } = useT();
+  const [nowMs, setNowMs] = useState(INITIAL_NOW_MS);
   const [showConversation, setShowConversation] = useState(false);
   const [showRiskDetails, setShowRiskDetails] = useState(false);
   const [showRagEvidence, setShowRagEvidence] = useState(false);
@@ -75,32 +81,24 @@ export function CustomerService({
   const sendBlocked = activeTicket?.sendGuardrailResult?.blocked ?? false;
   const visibleMessages = showConversation ? activeMessages : activeMessages.slice(-2);
   const latestCustomerMessage = [...activeMessages].reverse().find(item => item.sender === 'customer') ?? null;
-  const riskRuleName = activeDraft?.sourceTrace?.scenarioConfigName ?? `${displayIssueType(activeTicket?.issueType ?? 'Complaint')}策略`;
+  const riskRuleName = getRiskRuleName(activeTicket, activeDraft);
   const riskReason = activeTicket?.sendGuardrailResult?.reason
     ?? activeReview?.reason
     ?? (activeTicket?.manualReview ? '当前场景命中高敏流程，需要先人工确认，再决定是否向客户发送。' : '当前问题未命中强制复核策略，可按标准路径继续处理。');
-  const needsChecklist = useMemo(
-    () => Boolean(activeDraft?.sourceTrace?.scenario && ['Refund', 'Complaint', 'Compensation', 'Chargeback'].includes(activeDraft.sourceTrace.scenario)),
-    [activeDraft],
-  );
-  const checklist = useMemo(
-    () => buildReviewChecklist({
-      ticket: activeTicket,
-      customer: activeCustomer,
-      order: activeOrder,
-      draft: activeDraft,
-      review: activeReview,
-      sendBlocked,
-      riskReason,
-    }),
-    [activeCustomer, activeDraft, activeOrder, activeReview, activeTicket, riskReason, sendBlocked],
-  );
+  const needsChecklist = Boolean(activeDraft?.sourceTrace?.scenario && ['Refund', 'Complaint', 'Compensation', 'Chargeback'].includes(activeDraft.sourceTrace.scenario));
+  const checklist = buildReviewChecklist({
+    ticket: activeTicket,
+    customer: activeCustomer,
+    order: activeOrder,
+    draft: activeDraft,
+    review: activeReview,
+    sendBlocked,
+    riskReason,
+  });
   const blockedChecklistItem = checklist.find(item => item.status === 'Blocked') ?? checklist.find(item => item.status === 'Pending') ?? null;
   const checklistBlocked = needsChecklist && checklist.some((item, index) => index < checklist.length - 1 && item.status !== 'Completed');
   const canSend = !sendBlocked && !checklistBlocked;
-  const statusSummary = activeTicket
-    ? `${displayRiskLevel(activeTicket.riskLevel)} · ${displayWorkflow(activeTicket.workflowStage)} · ${canSend ? '可发送' : '不可发送'}`
-    : '';
+  const statusSummary = getStatusSummary(activeTicket, canSend);
   const conclusionSummary = sendBlocked
     ? `高风险${displayIssueType(activeTicket?.issueType ?? 'Complaint')}，AI 不允许直接发送。`
     : '当前未命中发送阻断，可以进入最终人工发送。';
@@ -116,11 +114,9 @@ export function CustomerService({
     ? { label: '不可发送', tone: 'red' as const, detail: activeTicket?.sendGuardrailResult?.reason ?? '当前流程仍有复核阻断，不能直接发送。' }
     : { label: '可发送', tone: 'green' as const, detail: '当前场景已通过现有护栏与复核条件，可由客服人工发送。' };
   const ragEvidenceSummary = activeDraft
-    ? `命中 ${activeDraft.citations.length} 个政策文档，最高匹配 ${highestCitation(activeDraft)}%，用于判断${displayIssueType(activeTicket?.issueType ?? 'Complaint')}。`
+    ? `命中 ${activeDraft.citations.length} 个政策文档，最高匹配 ${getHighestCitation(activeDraft)}%，用于判断${displayIssueType(activeTicket?.issueType ?? 'Complaint')}。`
     : '暂无 RAG 证据，请先生成 AI 草稿。';
-  const customerOverview = activeCustomer
-    ? `${activeCustomer.name}是${activeCustomer.country}${displayLanguage(activeCustomer.preferredLanguage)}客户，当前围绕${displayIssueType(activeTicket?.issueType ?? 'Complaint')}发起服务请求。${activeOrder ? `订单${displayPaymentStatus(activeOrder.paymentStatus)}，履约${displayFulfillmentStatus(activeOrder.fulfillmentStatus)}。` : ''}${sendBlocked ? '建议先核对证据与政策适用范围，不要直接承诺退款或赔偿。' : '建议按当前知识引用确认措辞后，由客服人工发送最终回复。'}`
-    : '暂无客户概览。';
+  const customerOverview = getCustomerOverview({ activeCustomer, activeTicket, activeOrder, sendBlocked });
   const primaryAction = !activeTicket
     ? null
     : canSend
@@ -141,6 +137,11 @@ export function CustomerService({
       ]
     : [];
   const hasActiveQueueFilters = Boolean(query.filters.channel || query.filters.workflowStage || query.filters.riskLevel);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -268,10 +269,7 @@ export function CustomerService({
                     ))}
                   </div>
                   {(() => {
-                    const diffMs = new Date(ticket.sla).getTime() - Date.now();
-                    const windowMs = 72 * 60 * 60 * 1000;
-                    const pct = Math.max(0, Math.min(100, (diffMs / windowMs) * 100));
-                    const barColor = pct > 50 ? 'bg-emerald-500' : pct > 25 ? 'bg-amber-500' : 'bg-rose-500';
+                    const { diffMs, pct, barColor } = getSlaProgress(ticket.sla, nowMs);
                     const lbl = diffMs <= 0 ? '超时' : diffMs < 3_600_000 ? `${Math.round(diffMs / 60_000)}m` : diffMs < 86_400_000 ? `${Math.round(diffMs / 3_600_000)}h` : `${Math.ceil(diffMs / 86_400_000)}d`;
                     return (
                       <div className="mt-2 flex items-center gap-1.5">
@@ -305,10 +303,7 @@ export function CustomerService({
                 <div className="text-[18px] font-semibold tracking-[-0.02em]">{activeTicket.id} · {displayIssueType(activeTicket.issueType)}</div>
                 <div className="text-sm text-[var(--color-text-secondary)] mt-1">{statusSummary}</div>
                 {(() => {
-                  const diffMs = new Date(activeTicket.sla).getTime() - Date.now();
-                  const totalWindowMs = 72 * 60 * 60 * 1000;
-                  const pct = Math.max(0, Math.min(100, (diffMs / totalWindowMs) * 100));
-                  const barColor = pct > 50 ? 'bg-emerald-500' : pct > 25 ? 'bg-amber-500' : 'bg-rose-500';
+                  const { diffMs, pct, barColor } = getSlaProgress(activeTicket.sla, nowMs);
                   const label = diffMs <= 0 ? '已超时' : diffMs < 3_600_000 ? `${Math.round(diffMs / 60_000)}m` : diffMs < 86_400_000 ? `${Math.round(diffMs / 3_600_000)}h` : `${Math.ceil(diffMs / 86_400_000)}d`;
                   return (
                     <div className="mt-2 flex items-center gap-2">
@@ -398,7 +393,7 @@ export function CustomerService({
                     </div>
                     <div className="grid grid-cols-4 gap-2 mb-3 max-[980px]:grid-cols-2 max-[640px]:grid-cols-1">
                       <SignalCard label="Confidence" value={`${activeDraft.confidence}%`} />
-                      <SignalCard label="Citation Coverage" value={`${highestCitation(activeDraft)}%`} />
+                      <SignalCard label="Citation Coverage" value={`${getHighestCitation(activeDraft)}%`} />
                       <SignalCard label="Risk Level" value={displayRiskLevel(activeDraft.riskLevel)} />
                       <SignalCard label="Manual Review" value={activeTicket.manualReview ? 'Required' : 'Not Required'} />
                     </div>
@@ -646,64 +641,4 @@ function CollapsibleSummary({
 
 function summarizeQueue(summary: string) {
   return summary.replace('客户', '').replace('。', '').trim();
-}
-
-function highestCitation(draft: ReplyDraft) {
-  return draft.citations.reduce((max, item) => {
-    const parsed = Number(item.match.replace('%', ''));
-    return Number.isFinite(parsed) ? Math.max(max, parsed) : max;
-  }, 0);
-}
-
-function buildReviewChecklist({
-  ticket,
-  customer,
-  order,
-  draft,
-  review,
-  sendBlocked,
-  riskReason,
-}: {
-  ticket: ServiceTicket | null;
-  customer: CustomerProfile | null;
-  order: Order | null;
-  draft: ReplyDraft | null;
-  review: ReviewDecision | null;
-  sendBlocked: boolean;
-  riskReason: string;
-}) {
-  const evidenceBlocked = /补充证据|缺少证据/.test(ticket?.policyDecision ?? riskReason);
-
-  return [
-    {
-      label: '核对客户身份',
-      status: customer ? 'Completed' : 'Blocked',
-      detail: customer ? `${customer.name} / ${customer.country} / ${displayLanguage(customer.preferredLanguage)}` : '缺少客户身份信息',
-    },
-    {
-      label: '核对订单状态',
-      status: order ? 'Completed' : 'Blocked',
-      detail: order ? `${displayPaymentStatus(order.paymentStatus)} · ${displayFulfillmentStatus(order.fulfillmentStatus)}` : '未关联订单上下文',
-    },
-    {
-      label: '核对退款 / 投诉 / 赔偿政策',
-      status: draft?.sourceTrace ? 'Completed' : 'Pending',
-      detail: draft?.sourceTrace ? `${draft.sourceTrace.scenarioConfigName} ${draft.sourceTrace.scenarioConfigVersion}` : '尚未确认对应政策',
-    },
-    {
-      label: '检查客户证据',
-      status: evidenceBlocked ? 'Blocked' : draft?.citations.length ? 'Completed' : 'Pending',
-      detail: evidenceBlocked ? '当前仍提示需补充证据' : draft?.citations.length ? `已命中 ${draft.citations.length} 条证据` : '待补充客户证据或知识引用',
-    },
-    {
-      label: '主管审批',
-      status: review?.status === 'approved' ? 'Completed' : sendBlocked ? 'Blocked' : 'Pending',
-      detail: review?.status === 'approved' ? '人工复核已通过' : sendBlocked ? '发送前必须先通过复核' : '当前无需主管审批',
-    },
-    {
-      label: '准备最终回复',
-      status: !sendBlocked && draft?.content ? 'Completed' : 'Pending',
-      detail: !sendBlocked && draft?.content ? '已满足发送前条件' : '完成以上步骤后才能发送最终回复',
-    },
-  ] as const;
 }

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Badge } from '../../../../components/common/Badge';
 import { Button } from '../../../../components/common/Button';
 import { Drawer } from '../../../../components/common/Drawer';
-import { StatusPill, healthStatusLabel, indexStatusLabel, commonValueLabel, FactGrid } from './helpers';
+import { FactGrid, StatusPill } from './helpers';
+import { commonValueLabel, healthStatusLabel, indexStatusLabel } from './helperLabels';
 import type { LLMStatus, EmbeddingServiceStatus, VectorDbStatus, DocumentIngestionQueueStatus } from '../../../../types';
 
 interface CoreServiceStatusProps {

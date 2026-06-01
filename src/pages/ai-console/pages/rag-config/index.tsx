@@ -36,7 +36,7 @@ const PRESETS = {
     },
   },
   balanced: {
-    recipe: (_cfg: AIConsoleProps['ragConfig']) => {},
+    recipe: () => undefined,
   },
 } as const;
 
@@ -70,7 +70,9 @@ export function RagConfigPage({ ragConfig, onUpdateRagConfig, onOpenPage, effect
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [activeStep, setActiveStep] = useState<RagConfigStep>('parser');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => (typeof window === 'undefined' ? false : window.matchMedia('(max-width: 1024px)').matches),
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -93,7 +95,6 @@ export function RagConfigPage({ ragConfig, onUpdateRagConfig, onOpenPage, effect
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1024px)');
-    setSidebarCollapsed(mq.matches);
     const handler = (e: MediaQueryListEvent) => setSidebarCollapsed(e.matches);
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);

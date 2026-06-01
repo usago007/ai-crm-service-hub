@@ -1,5 +1,5 @@
 import { Badge } from '../../../../components/common/Badge';
-import { severityBadgeVariant, severityLabel } from './helpers';
+import { severityBadgeVariant, severityLabel } from './helperLabels';
 import type { ServiceHealthSeverity } from '../../../../types';
 
 interface AnomalyItem {

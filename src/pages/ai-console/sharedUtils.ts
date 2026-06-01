@@ -1,5 +1,4 @@
-export const inputCls =
-  'h-11 border border-[var(--color-border-strong)] rounded-[16px] px-3.5 text-[13px] bg-[rgba(255,255,255,0.84)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] outline-none focus:border-[rgba(179,92,32,0.34)] focus:bg-white focus:shadow-[0_0_0_4px_rgba(179,92,32,0.10)] w-full transition-all duration-200 text-[var(--color-text)]';
+export { inputCls } from '../../components/common/forms';
 
 export function displayStageStatus(status: string) {
   const labels: Record<string, string> = {
