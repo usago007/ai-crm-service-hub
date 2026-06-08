@@ -191,7 +191,7 @@ export function RagConfigPage({ ragConfig, onUpdateRagConfig, onOpenPage, effect
   /* ---- render ---- */
 
   return (
-    <div className="w-full max-w-[1280px] mx-auto">
+    <div className="w-full">
       {/* Unified shell card */}
       <div className="shell-card rounded-[24px] overflow-hidden">
 
