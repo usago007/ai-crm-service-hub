@@ -1,5 +1,7 @@
 # AI CRM Service Hub
 
+Online demo: [https://usago007.github.io/ai-crm-service-hub/](https://usago007.github.io/ai-crm-service-hub/)
+
 A front-end workbench for customer service, CRM, and RAG-powered AI operations. Built with **React 19**, **TypeScript 6**, **Vite 8**, and **Tailwind CSS 4**. Driven entirely by mock API contracts and structured fixtures — no real backend, vector store, or model inference required to run.
 
 ## Target Scenarios
@@ -23,7 +25,7 @@ This project models the operational surface of an AI-assisted customer service p
 
 ### AI Console
 - **Global RAG Configuration** — parser (OCR, tables, headings), chunking (strategy, size, overlap), embedding (model, dimensions, index), retrieval (top-K, threshold, reranker, query rewrite), and prompt assembly (customer context, business rules, risk policies, blocked claims, output format)
-- **Scenario Policy Configuration** — per-scenario model, retrieval, and review policies
+- **Scenario Policy Configuration** — per-scenario knowledge scope, capability-node orchestration, model, retrieval, prompt, guardrail, and review policies
 - **RAG Test Lab** — end-to-end retrieval debugging with chunk inspection, prompt preview, and guardrail simulation
 - **Evaluation & Feedback** — score AI outputs, log issues, trigger improvement actions
 - **Service Health Dashboard** — LLM status, embedding service, vector DB, external connectors, ingestion queue, diagnostics
@@ -82,6 +84,39 @@ src/
 └── utils/               display helpers and formatting utilities
 ```
 
+## AI Policy Model
+
+The AI console follows one boundary rule: **capability nodes are fixed, knowledge bases are required, and scenario strategies orchestrate execution**.
+
+```mermaid
+flowchart TB
+    STRATEGY["AI 场景策略<br/>业务流程编排层"]
+    NODELIB["能力节点库<br/>固定 AI 原子能力层"]
+    KB["知识库与知识集合<br/>业务依据与规则来源"]
+    GOVERN["Prompt / Guardrail / Evaluation<br/>治理配置层"]
+
+    STRATEGY -->|"编排调用、启停、排序、覆盖参数"| NODELIB
+    STRATEGY -->|"必须绑定至少一个知识库 + 知识集合"| KB
+    STRATEGY -->|"定义生成、审核、评估规则"| GOVERN
+    NODELIB -.->|"运行时通过场景策略读取知识范围"| KB
+```
+
+### Terms
+
+- **AI 场景策略 / Scenario Strategy** — business-scenario workflow configuration for cases such as `Shipping`, `Refund`, `Product Inquiry`, `Payment`, `Complaint`, `Compensation`, and `Chargeback`. It binds a knowledge scope, orders fixed capability nodes, overrides node parameters, and defines prompt, guardrail, manual-review, and output rules.
+- **能力节点库 / Capability Node Library** — the fixed AI atomic capability layer, such as intent classification, knowledge retrieval, policy check, risk detection, reply drafting, and human review routing. Node definitions own default input/output, model, timeout, retry, fallback, citation, human-confirmation, dependency, required, and lock rules.
+- **知识库与知识集合 / Knowledge Base & Collection** — the business evidence layer for FAQ, policy, SOP, rules, and standard replies. A strategy must bind at least one knowledge base and one collection before it can be saved.
+- **PipelineNodeModelConfig** — compatibility configuration for the existing node editor. New UI display and validation prefer the extended capability-node definition fields, while keeping the compatibility fields available for older flows.
+
+### Product Rules
+
+- A scenario strategy cannot be saved without an effective `知识库 + 知识集合` binding. Disabled knowledge bases do not participate in the effective knowledge scope, but their selected collections are preserved locally when re-enabled.
+- Active strategies must enable the required capability nodes declared by node definitions. Current active-required nodes include `intent-classification`, `knowledge-retrieval`, and `reply-drafting`.
+- Sensitive scenarios `Refund`, `Complaint`, `Compensation`, and `Chargeback` must enable `policy-check`, `risk-detection`, and `human-review-routing`.
+- When `manualReviewRequired=true`, the UI automatically enables `human-review-routing`, locks its switch, and the mock API rejects any payload that omits it.
+- The capability node library never binds concrete knowledge bases or collections. Strategy execution injects the selected knowledge collections into knowledge retrieval, policy check, reply drafting, and related runtime steps.
+- The mock API repeats save-time validation and rejects illegal payloads. It does not silently downgrade an invalid `active` strategy to `draft`.
+
 ## Mock Data Rules
 
 - Mock data lives exclusively in `src/mocks` and `src/api/adapters`
@@ -98,6 +133,24 @@ npm run build      # type-check and production build
 npm run lint       # run ESLint
 npm run preview    # preview production build locally
 ```
+
+## Build & Deployment
+
+This project is deployed to GitHub Pages via a GitHub Actions workflow (`.github/workflows/deploy.yml`). On every push to `main`, the app is built and published automatically.
+
+The live deployment is available at [https://usago007.github.io/ai-crm-service-hub/](https://usago007.github.io/ai-crm-service-hub/).
+
+## Project Documentation
+
+| File | Contents |
+|------|----------|
+| `AGENTS.md` | AI coding agent rules — read before making any code changes |
+| `ARCHITECTURE.md` | Directory structure, data flow, ID reference map, known issues |
+| `TASKS.md` | Known bugs, data integrity issues, refactoring tasks |
+| `DECISIONS.md` | Architecture Decision Records (ADRs) |
+| `SPEC.md` | Functional specifications and module boundaries |
+| `MOCK_DATA.md` | Mock data reference, ID system, field semantics |
+| `CLAUDE.md` | Claude Code execution guide |
 
 ## Notes
 
