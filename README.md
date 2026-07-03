@@ -90,27 +90,27 @@ The AI console follows one boundary rule: **capability nodes are fixed, knowledg
 
 ```mermaid
 flowchart TB
-    STRATEGY["AI 场景策略<br/>业务流程编排层"]
-    NODELIB["能力节点库<br/>固定 AI 原子能力层"]
-    KB["知识库与知识集合<br/>业务依据与规则来源"]
-    GOVERN["Prompt / Guardrail / Evaluation<br/>治理配置层"]
+    STRATEGY["AI Scenario Strategy<br/>Business Process Orchestration Layer"]
+    NODELIB["Capability Node Library<br/>Fixed AI Atomic Capability Layer"]
+    KB["Knowledge Base & Collection<br/>Business Evidence & Rules Source"]
+    GOVERN["Prompt / Guardrail / Evaluation<br/>Governance Configuration Layer"]
 
-    STRATEGY -->|"编排调用、启停、排序、覆盖参数"| NODELIB
-    STRATEGY -->|"必须绑定至少一个知识库 + 知识集合"| KB
-    STRATEGY -->|"定义生成、审核、评估规则"| GOVERN
-    NODELIB -.->|"运行时通过场景策略读取知识范围"| KB
+    STRATEGY -->|"Orchestrate, enable, order, override params"| NODELIB
+    STRATEGY -->|"Must bind =1 knowledge base + collection"| KB
+    STRATEGY -->|"Define generation, review, evaluation rules"| GOVERN
+    NODELIB -.->|"Runtime reads knowledge scope from strategy"| KB
 ```
 
 ### Terms
 
-- **AI 场景策略 / Scenario Strategy** — business-scenario workflow configuration for cases such as `Shipping`, `Refund`, `Product Inquiry`, `Payment`, `Complaint`, `Compensation`, and `Chargeback`. It binds a knowledge scope, orders fixed capability nodes, overrides node parameters, and defines prompt, guardrail, manual-review, and output rules.
-- **能力节点库 / Capability Node Library** — the fixed AI atomic capability layer, such as intent classification, knowledge retrieval, policy check, risk detection, reply drafting, and human review routing. Node definitions own default input/output, model, timeout, retry, fallback, citation, human-confirmation, dependency, required, and lock rules.
-- **知识库与知识集合 / Knowledge Base & Collection** — the business evidence layer for FAQ, policy, SOP, rules, and standard replies. A strategy must bind at least one knowledge base and one collection before it can be saved.
+- **Scenario Strategy** — business-scenario workflow configuration for cases such as `Shipping`, `Refund`, `Product Inquiry`, `Payment`, `Complaint`, `Compensation`, and `Chargeback`. It binds a knowledge scope, orders fixed capability nodes, overrides node parameters, and defines prompt, guardrail, manual-review, and output rules.
+- **Capability Node Library** — the fixed AI atomic capability layer, such as intent classification, knowledge retrieval, policy check, risk detection, reply drafting, and human review routing. Node definitions own default input/output, model, timeout, retry, fallback, citation, human-confirmation, dependency, required, and lock rules.
+- **Knowledge Base & Collection** — the business evidence layer for FAQ, policy, SOP, rules, and standard replies. A strategy must bind at least one knowledge base and one collection before it can be saved.
 - **PipelineNodeModelConfig** — compatibility configuration for the existing node editor. New UI display and validation prefer the extended capability-node definition fields, while keeping the compatibility fields available for older flows.
 
 ### Product Rules
 
-- A scenario strategy cannot be saved without an effective `知识库 + 知识集合` binding. Disabled knowledge bases do not participate in the effective knowledge scope, but their selected collections are preserved locally when re-enabled.
+- A scenario strategy cannot be saved without an effective `Knowledge Base + Collection` binding. Disabled knowledge bases do not participate in the effective knowledge scope, but their selected collections are preserved locally when re-enabled.
 - Active strategies must enable the required capability nodes declared by node definitions. Current active-required nodes include `intent-classification`, `knowledge-retrieval`, and `reply-drafting`.
 - Sensitive scenarios `Refund`, `Complaint`, `Compensation`, and `Chargeback` must enable `policy-check`, `risk-detection`, and `human-review-routing`.
 - When `manualReviewRequired=true`, the UI automatically enables `human-review-routing`, locks its switch, and the mock API rejects any payload that omits it.
